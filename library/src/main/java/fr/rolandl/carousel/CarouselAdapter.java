@@ -32,7 +32,7 @@ public abstract class CarouselAdapter<T extends Adapter>
    * {@link android.view.View.OnCreateContextMenuListener#onCreateContextMenu(ContextMenu, View, ContextMenuInfo) } callback when a context menu is
    * brought up for this CarouselAdapter.
    */
-  private static class AdapterContextMenuInfo
+  protected static class AdapterContextMenuInfo
       implements ContextMenu.ContextMenuInfo
   {
 
@@ -60,7 +60,7 @@ public abstract class CarouselAdapter<T extends Adapter>
 
   }
 
-  private class AdapterDataSetObserver
+  protected class AdapterDataSetObserver
       extends DataSetObserver
   {
 
@@ -227,7 +227,7 @@ public abstract class CarouselAdapter<T extends Adapter>
   /**
    * Sync based on the selected child
    */
-  private static final int SYNC_SELECTED_POSITION = 0;
+  protected static final int SYNC_SELECTED_POSITION = 0;
 
   /**
    * Sync based on the first child displayed
@@ -242,7 +242,7 @@ public abstract class CarouselAdapter<T extends Adapter>
   /**
    * The position of the first child displayed
    */
-  private int firstPosition = 0;
+  protected int firstPosition = 0;
 
   /**
    * The offset in pixels from the top of the CarouselAdapter to the top of the view to select during the next layout.
@@ -252,12 +252,12 @@ public abstract class CarouselAdapter<T extends Adapter>
   /**
    * Position from which to start looking for syncRowId
    */
-  private int syncPosition;
+  protected int syncPosition;
 
   /**
    * Row id to look for when data has changed
    */
-  private long syncRowId = INVALID_ROW_ID;
+  protected long syncRowId = INVALID_ROW_ID;
 
   /**
    * Height of the view when syncPosition and syncRowId where set
@@ -267,13 +267,13 @@ public abstract class CarouselAdapter<T extends Adapter>
   /**
    * True if we need to sync to syncRowId
    */
-  private boolean needSync = false;
+  protected boolean needSync = false;
 
   /**
    * Indicates whether to sync based on the selection or position. Possible values are {@link #SYNC_SELECTED_POSITION} or {@link #SYNC_FIRST_POSITION}
    * .
    */
-  private int syncMode;
+  protected int syncMode;
 
   /**
    * Our height after the last layout
@@ -303,7 +303,7 @@ public abstract class CarouselAdapter<T extends Adapter>
   /**
    * True if the data has changed since the last layout
    */
-  private boolean dataChanged;
+  protected boolean dataChanged;
 
   /**
    * The position within the adapter's data set of the item to select during the next layout.
@@ -318,7 +318,7 @@ public abstract class CarouselAdapter<T extends Adapter>
   /**
    * The position within the adapter's data set of the currently selected item.
    */
-  private int selectedPosition = INVALID_POSITION;
+  protected int selectedPosition = INVALID_POSITION;
 
   /**
    * The item id of the currently selected item.
@@ -333,22 +333,22 @@ public abstract class CarouselAdapter<T extends Adapter>
   /**
    * The number of items in the current adapter.
    */
-  private int itemCount;
+  protected int itemCount;
 
   /**
    * The number of items in the adapter before a data changed event occured.
    */
-  private int oldItemCount;
+  protected int oldItemCount;
 
   /**
    * The last selected position we used when notifying
    */
-  private int oldSelectedPosition = INVALID_POSITION;
+  protected int oldSelectedPosition = INVALID_POSITION;
 
   /**
    * The id of the last selected position we used when notifying
    */
-  private long oldSelectedRowId = INVALID_ROW_ID;
+  protected long oldSelectedRowId = INVALID_ROW_ID;
 
   /**
    * Indicates what focusable state is requested when calling setFocusable(). In addition to this, this view has other criteria for actually
@@ -596,7 +596,7 @@ public abstract class CarouselAdapter<T extends Adapter>
     return false;
   }
 
-  private void checkFocus()
+  protected void checkFocus()
   {
     final T adapter = getAdapter();
     final boolean empty = adapter == null || adapter.getCount() == 0;
@@ -725,7 +725,7 @@ public abstract class CarouselAdapter<T extends Adapter>
     return (adapter == null || position < 0) ? INVALID_ROW_ID : adapter.getItemId(position);
   }
 
-  private void handleDataChanged()
+  protected void handleDataChanged()
   {
     final int count = itemCount;
     boolean found = false;
@@ -800,7 +800,7 @@ public abstract class CarouselAdapter<T extends Adapter>
     }
   }
 
-  private void checkSelectionChanged()
+  protected void checkSelectionChanged()
   {
     if ((selectedPosition != oldSelectedPosition) || (selectedRowId != oldSelectedRowId))
     {
@@ -923,7 +923,7 @@ public abstract class CarouselAdapter<T extends Adapter>
    *
    * @param position Our current position
    */
-  private void setSelectedPositionInt(int position)
+  protected void setSelectedPositionInt(int position)
   {
     selectedPosition = position;
     selectedRowId = getItemIdAtPosition(position);
@@ -934,7 +934,7 @@ public abstract class CarouselAdapter<T extends Adapter>
    *
    * @param position Intended value for selectedPosition the next time we go through layout
    */
-  private void setNextSelectedPositionInt(int position)
+  protected void setNextSelectedPositionInt(int position)
   {
     nextSelectedPosition = position;
     nextSelectedRowId = getItemIdAtPosition(position);
