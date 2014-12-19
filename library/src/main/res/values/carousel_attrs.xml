@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<resources xmlns:android="http://schemas.android.com/apk/res/android">
+
+  <declare-styleable name="Carousel">
+    <attr
+      name="android:gravity"
+    />  
+    <attr 
+      name="android:animationDuration"
+    />
+  </declare-styleable>
+
+</resources>
