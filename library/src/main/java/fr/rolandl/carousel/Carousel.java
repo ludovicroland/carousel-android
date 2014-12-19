@@ -6,7 +6,6 @@ import android.graphics.Camera;
 import android.graphics.Matrix;
 import android.graphics.Rect;
 import android.util.AttributeSet;
-import android.util.Log;
 import android.view.ContextMenu.ContextMenuInfo;
 import android.view.GestureDetector;
 import android.view.Gravity;
@@ -53,7 +52,7 @@ public final class Carousel
      */
     public FlingRotateRunnable()
     {
-      rotator = new Rotator(getContext());
+      rotator = new Rotator();
     }
 
     private void startCommon()
