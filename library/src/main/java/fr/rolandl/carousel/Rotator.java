@@ -1,39 +1,22 @@
 package fr.rolandl.carousel;
 
-import android.content.Context;
 import android.view.animation.AnimationUtils;
 
 /**
- * @author Ludovic Roland
- * @since 2014.01.03
+ * @author Igor Kushnarev, Ludovic Roland
+ * @since 2014.12.19
  * <p/>
  * This class encapsulates rotation. The duration of the rotation can be passed in the constructor and specifies the maximum time that the
  * rotation animation should take. Past this time, the rotation is automatically moved to its final stage and computeRotationOffset() will
  * always return false to indicate that scrolling is over.
  */
-// Taken from http://horribile.blogspot.fr/2011/11/android-3d-carousel.html
+//Inspired by http://www.codeproject.com/Articles/146145/Android-D-Carousel?fid=1605167&df=90&mpp=25&sort=Position&spc=Relaxed&tid=4918792
 public final class Rotator
 {
 
-  private int mMode;
-
-  private float mStartAngle;
-
-  private float mCurrAngle;
-
-  private long mStartTime;
-
-  private long mDuration;
-
-  private float mDeltaAngle;
-
-  private boolean mFinished;
-
-  private final float mCoeffVelocity = 0.05f;
-
-  private float mVelocity;
-
   private static final int DEFAULT_DURATION = 250;
+
+  private static final float COEFF_VELOCOTY = 0.05f;
 
   private static final int SCROLL_MODE = 0;
 
@@ -41,12 +24,29 @@ public final class Rotator
 
   private final float mDeceleration = 240.0f;
 
+  private int mode;
+
+  private float startAngle;
+
+  private float currAngle;
+
+  private long startTime;
+
+  private long duration;
+
+  private float deltaAngle;
+
+  private boolean finished;
+
+  private float velocity;
+
+
   /**
    * Create a Scroller with the specified interpolator. If the interpolator is null, the default (viscous) interpolator will be used.
    */
-  public Rotator(Context context)
+  public Rotator()
   {
-    mFinished = true;
+    finished = true;
   }
 
   /**
@@ -56,7 +56,7 @@ public final class Rotator
    */
   public final boolean isFinished()
   {
-    return mFinished;
+    return finished;
   }
 
   /**
@@ -66,7 +66,7 @@ public final class Rotator
    */
   public final void forceFinished(boolean finished)
   {
-    mFinished = finished;
+    this.finished = finished;
   }
 
   /**
@@ -76,7 +76,7 @@ public final class Rotator
    */
   public final long getDuration()
   {
-    return mDuration;
+    return duration;
   }
 
   /**
@@ -86,7 +86,7 @@ public final class Rotator
    */
   public final float getCurrAngle()
   {
-    return mCurrAngle;
+    return currAngle;
   }
 
   /**
@@ -95,7 +95,7 @@ public final class Rotator
    */
   public float getCurrVelocity()
   {
-    return mCoeffVelocity * mVelocity - mDeceleration * timePassed() /* / 2000.0f */;
+    return COEFF_VELOCOTY * velocity - mDeceleration * timePassed() /* / 2000.0f */;
   }
 
   /**
@@ -105,7 +105,7 @@ public final class Rotator
    */
   public final float getStartAngle()
   {
-    return mStartAngle;
+    return startAngle;
   }
 
   /**
@@ -115,22 +115,14 @@ public final class Rotator
    */
   public int timePassed()
   {
-    return (int) (AnimationUtils.currentAnimationTimeMillis() - mStartTime);
+    return (int) (AnimationUtils.currentAnimationTimeMillis() - startTime);
   }
 
-  /**
-   * Extend the scroll animation. This allows a running animation to scroll further and longer, when used with {@link #setFinalX(int)} or
-   * {@link #setFinalY(int)}.
-   *
-   * @param extend Additional time to scroll in milliseconds.
-   * @see #setFinalX(int)
-   * @see #setFinalY(int)
-   */
   public void extendDuration(int extend)
   {
-    int passed = timePassed();
-    mDuration = passed + extend;
-    mFinished = false;
+    final int passed = timePassed();
+    duration = passed + extend;
+    finished = false;
   }
 
   /**
@@ -140,7 +132,7 @@ public final class Rotator
    */
   public void abortAnimation()
   {
-    mFinished = true;
+    finished = true;
   }
 
   /**
@@ -149,82 +141,62 @@ public final class Rotator
    */
   public boolean computeAngleOffset()
   {
-    if (mFinished)
+    if (finished == true)
     {
       return false;
     }
 
-    long systemClock = AnimationUtils.currentAnimationTimeMillis();
-    long timePassed = systemClock - mStartTime;
+    final long systemClock = AnimationUtils.currentAnimationTimeMillis();
+    final long timePassed = systemClock - startTime;
 
-    if (timePassed < mDuration)
+    if (timePassed < duration)
     {
-      switch (mMode)
+      switch (mode)
       {
       case SCROLL_MODE:
-
-        float sc = (float) timePassed / mDuration;
-        mCurrAngle = mStartAngle + Math.round(mDeltaAngle * sc);
+        final float sc = (float) timePassed / duration;
+        currAngle = startAngle + Math.round(deltaAngle * sc);
         break;
 
       case FLING_MODE:
-
-        float timePassedSeconds = timePassed / 1000.0f;
+        final float timePassedSeconds = timePassed / 1000.0f;
         float distance;
 
-        if (mVelocity < 0)
+        if (velocity < 0)
         {
-          distance = mCoeffVelocity * mVelocity * timePassedSeconds - (mDeceleration * timePassedSeconds * timePassedSeconds / 2.0f);
+          distance = COEFF_VELOCOTY * velocity * timePassedSeconds - (mDeceleration * timePassedSeconds * timePassedSeconds / 2.0f);
         }
         else
         {
-          distance = -mCoeffVelocity * mVelocity * timePassedSeconds - (mDeceleration * timePassedSeconds * timePassedSeconds / 2.0f);
+          distance = -COEFF_VELOCOTY * velocity * timePassedSeconds - (mDeceleration * timePassedSeconds * timePassedSeconds / 2.0f);
         }
 
-        mCurrAngle = mStartAngle - Math.signum(mVelocity) * Math.round(distance);
-
+        currAngle = startAngle - Math.signum(velocity) * Math.round(distance);
         break;
       }
+
       return true;
     }
     else
     {
-      mFinished = true;
+      finished = true;
       return false;
     }
   }
 
-  /**
-   * Start scrolling by providing a starting point and the distance to travel.
-   *
-   * @param startX   Starting horizontal scroll offset in pixels. Positive numbers will scroll the content to the left.
-   * @param startY   Starting vertical scroll offset in pixels. Positive numbers will scroll the content up.
-   * @param dx       Horizontal distance to travel. Positive numbers will scroll the content to the left.
-   * @param dy       Vertical distance to travel. Positive numbers will scroll the content up.
-   * @param duration Duration of the scroll in milliseconds.
-   */
   public void startRotate(float startAngle, float dAngle, int duration)
   {
-    mMode = SCROLL_MODE;
-    mFinished = false;
-    mDuration = duration;
-    mStartTime = AnimationUtils.currentAnimationTimeMillis();
-    mStartAngle = startAngle;
-    mDeltaAngle = dAngle;
+    mode = Rotator.SCROLL_MODE;
+    finished = false;
+    this.duration = duration;
+    startTime = AnimationUtils.currentAnimationTimeMillis();
+    this.startAngle = startAngle;
+    deltaAngle = dAngle;
   }
 
-  /**
-   * Start scrolling by providing a starting point and the distance to travel. The scroll will use the default value of 250 milliseconds for the
-   * duration.
-   *
-   * @param startX Starting horizontal scroll offset in pixels. Positive numbers will scroll the content to the left.
-   * @param startY Starting vertical scroll offset in pixels. Positive numbers will scroll the content up.
-   * @param dx     Horizontal distance to travel. Positive numbers will scroll the content to the left.
-   * @param dy     Vertical distance to travel. Positive numbers will scroll the content up.
-   */
   public void startRotate(float startAngle, float dAngle)
   {
-    startRotate(startAngle, dAngle, DEFAULT_DURATION);
+    startRotate(startAngle, dAngle, Rotator.DEFAULT_DURATION);
   }
 
   /**
@@ -234,17 +206,12 @@ public final class Rotator
    */
   public void fling(float velocityAngle)
   {
-
-    mMode = FLING_MODE;
-    mFinished = false;
-
-    float velocity = velocityAngle;
-
-    mVelocity = velocity;
-    mDuration = (int) (1000.0f * Math.sqrt(2.0f * mCoeffVelocity * Math.abs(velocity) / mDeceleration));
-
-    mStartTime = AnimationUtils.currentAnimationTimeMillis();
-
+    final float velocity = velocityAngle;
+    mode = Rotator.FLING_MODE;
+    finished = false;
+    this.velocity = velocity;
+    duration = (int) (1000.0f * Math.sqrt(2.0f * COEFF_VELOCOTY * Math.abs(velocity) / mDeceleration));
+    startTime = AnimationUtils.currentAnimationTimeMillis();
   }
 
 }
