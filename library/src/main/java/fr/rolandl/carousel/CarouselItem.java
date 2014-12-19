@@ -7,12 +7,13 @@ import android.view.View;
 import android.widget.FrameLayout;
 
 /**
- * @author Ludovic Roland
- * @since 2014.01.03
+ * @author Igor Kushnarev, Ludovic Roland
+ * @since 2014.12.19
  */
-public abstract class Smart3DCarouselItem<T1, T2>
+//Inspired by http://www.codeproject.com/Articles/146145/Android-D-Carousel?fid=1605167&df=90&mpp=25&sort=Position&spc=Relaxed&tid=4918792
+public abstract class CarouselItem<T1, T2>
     extends FrameLayout
-    implements Comparable<Smart3DCarouselItem<?, ?>>
+    implements Comparable<CarouselItem<?, ?>>
 {
 
   private int index;
@@ -27,21 +28,20 @@ public abstract class Smart3DCarouselItem<T1, T2>
 
   private boolean drawn;
 
-  private Matrix mCIMatrix;
+  private Matrix matrix;
 
-  public Smart3DCarouselItem(Context context, int layoutId)
+  public CarouselItem(Context context, int layoutId)
   {
     super(context);
-    FrameLayout.LayoutParams params = new FrameLayout.LayoutParams(LayoutParams.WRAP_CONTENT, LayoutParams.WRAP_CONTENT);
+
+    final FrameLayout.LayoutParams params = new FrameLayout.LayoutParams(LayoutParams.WRAP_CONTENT, LayoutParams.WRAP_CONTENT);
     this.setLayoutParams(params);
 
-    LayoutInflater inflater = LayoutInflater.from(context);
+    final LayoutInflater inflater = LayoutInflater.from(context);
     final View view = inflater.inflate(layoutId, this, true);
 
     extractView(view);
   }
-
-  public abstract void extractView(View view);
 
   public void setIndex(int index)
   {
@@ -61,12 +61,6 @@ public abstract class Smart3DCarouselItem<T1, T2>
   public float getCurrentAngle()
   {
     return currentAngle;
-  }
-
-  @Override
-  public int compareTo(Smart3DCarouselItem<?, ?> another)
-  {
-    return (int) (another.itemZ - this.itemZ);
   }
 
   public void setItemX(float x)
@@ -109,27 +103,30 @@ public abstract class Smart3DCarouselItem<T1, T2>
     return drawn;
   }
 
-  // public void setImageBitmap(Bitmap bitmap)
-  // {
-  // mImage.setImageBitmap(bitmap);
-  //
-  // }
-
   public void update2(T1 arg0, T2 arg1)
   {
     update(arg0, arg1);
   }
 
-  public abstract void update(T1 arg0, T2 arg1);
-
-  Matrix getCIMatrix()
+  public Matrix getCIMatrix()
   {
-    return mCIMatrix;
+    return matrix;
   }
 
   void setCIMatrix(Matrix mMatrix)
   {
-    this.mCIMatrix = mMatrix;
+    this.matrix = mMatrix;
   }
+
+  @Override
+  public int compareTo(CarouselItem<?, ?> another)
+  {
+    return (int) (another.itemZ - this.itemZ);
+  }
+
+  public abstract void extractView(View view);
+
+  public abstract void update(T1 arg0, T2 arg1);
+
 
 }
