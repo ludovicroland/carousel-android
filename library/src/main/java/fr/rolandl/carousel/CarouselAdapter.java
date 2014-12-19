@@ -18,340 +18,21 @@ import android.view.accessibility.AccessibilityEvent;
 import android.widget.Adapter;
 import android.widget.ListView;
 
+/**
+ * @author Igor Kushnarev, Ludovic Roland
+ * @since 2014.12.19
+ */
+//Inspired by http://www.codeproject.com/Articles/146145/Android-D-Carousel?fid=1605167&df=90&mpp=25&sort=Position&spc=Relaxed&tid=4918792
 public abstract class CarouselAdapter<T extends Adapter>
     extends ViewGroup
 {
-
-  /**
-   * The item view type returned by {@link Adapter#getItemViewType(int)} when the adapter does not want the item's view recycled.
-   */
-  public static final int ITEM_VIEW_TYPE_IGNORE = -1;
-
-  /**
-   * The item view type returned by {@link Adapter#getItemViewType(int)} when the item is a header or footer.
-   */
-  public static final int ITEM_VIEW_TYPE_HEADER_OR_FOOTER = -2;
-
-  /**
-   * The position of the first child displayed
-   */
-  @ViewDebug.ExportedProperty
-  int mFirstPosition = 0;
-
-  /**
-   * The offset in pixels from the top of the CarouselAdapter to the top of the view to select during the next layout.
-   */
-  int mSpecificTop;
-
-  /**
-   * Position from which to start looking for mSyncRowId
-   */
-  int mSyncPosition;
-
-  /**
-   * Row id to look for when data has changed
-   */
-  long mSyncRowId = INVALID_ROW_ID;
-
-  /**
-   * Height of the view when mSyncPosition and mSyncRowId where set
-   */
-  long mSyncHeight;
-
-  /**
-   * True if we need to sync to mSyncRowId
-   */
-  boolean mNeedSync = false;
-
-  /**
-   * Indicates whether to sync based on the selection or position. Possible values are {@link #SYNC_SELECTED_POSITION} or {@link #SYNC_FIRST_POSITION}
-   * .
-   */
-  int mSyncMode;
-
-  /**
-   * Our height after the last layout
-   */
-  private int mLayoutHeight;
-
-  /**
-   * Sync based on the selected child
-   */
-  static final int SYNC_SELECTED_POSITION = 0;
-
-  /**
-   * Sync based on the first child displayed
-   */
-  static final int SYNC_FIRST_POSITION = 1;
-
-  /**
-   * Maximum amount of time to spend in {@link #findSyncPosition()}
-   */
-  static final int SYNC_MAX_DURATION_MILLIS = 100;
-
-  /**
-   * Indicates that this view is currently being laid out.
-   */
-  boolean mInLayout = false;
-
-  /**
-   * The listener that receives notifications when an item is selected.
-   */
-  OnItemSelectedListener mOnItemSelectedListener;
-
-  /**
-   * The listener that receives notifications when an item is clicked.
-   */
-  OnItemClickListener mOnItemClickListener;
-
-  /**
-   * The listener that receives notifications when an item is long clicked.
-   */
-  OnItemLongClickListener mOnItemLongClickListener;
-
-  /**
-   * True if the data has changed since the last layout
-   */
-  boolean mDataChanged;
-
-  /**
-   * The position within the adapter's data set of the item to select during the next layout.
-   */
-  @ViewDebug.ExportedProperty
-  int mNextSelectedPosition = INVALID_POSITION;
-
-  /**
-   * The item id of the item to select during the next layout.
-   */
-  long mNextSelectedRowId = INVALID_ROW_ID;
-
-  /**
-   * The position within the adapter's data set of the currently selected item.
-   */
-  @ViewDebug.ExportedProperty
-  int mSelectedPosition = INVALID_POSITION;
-
-  /**
-   * The item id of the currently selected item.
-   */
-  long mSelectedRowId = INVALID_ROW_ID;
-
-  /**
-   * View to show if there are no items to show.
-   */
-  private View mEmptyView;
-
-  /**
-   * The number of items in the current adapter.
-   */
-  @ViewDebug.ExportedProperty
-  int mItemCount;
-
-  /**
-   * The number of items in the adapter before a data changed event occured.
-   */
-  int mOldItemCount;
-
-  /**
-   * Represents an invalid position. All valid positions are in the range 0 to 1 less than the number of items in the current adapter.
-   */
-  public static final int INVALID_POSITION = -1;
-
-  /**
-   * Represents an empty or invalid row id
-   */
-  public static final long INVALID_ROW_ID = Long.MIN_VALUE;
-
-  /**
-   * The last selected position we used when notifying
-   */
-  int mOldSelectedPosition = INVALID_POSITION;
-
-  /**
-   * The id of the last selected position we used when notifying
-   */
-  long mOldSelectedRowId = INVALID_ROW_ID;
-
-  /**
-   * Indicates what focusable state is requested when calling setFocusable(). In addition to this, this view has other criteria for actually
-   * determining the focusable state (such as whether its empty or the text filter is shown).
-   *
-   * @see #setFocusable(boolean)
-   * @see #checkFocus()
-   */
-  private boolean mDesiredFocusableState;
-
-  private boolean mDesiredFocusableInTouchModeState;
-
-  private SelectionNotifier mSelectionNotifier;
-
-  /**
-   * When set to true, calls to requestLayout() will not propagate up the parent hierarchy. This is used to layout the children during a layout pass.
-   */
-  boolean mBlockLayoutRequests = false;
-
-  public CarouselAdapter(Context context)
-  {
-    super(context);
-  }
-
-  public CarouselAdapter(Context context, AttributeSet attrs)
-  {
-    super(context, attrs);
-  }
-
-  public CarouselAdapter(Context context, AttributeSet attrs, int defStyle)
-  {
-    super(context, attrs, defStyle);
-  }
-
-  /**
-   * Interface definition for a callback to be invoked when an item in this CarouselAdapter has been clicked.
-   */
-  public interface OnItemClickListener
-  {
-
-    /**
-     * Callback method to be invoked when an item in this CarouselAdapter has been clicked.
-     * <p/>
-     * Implementers can call getItemAtPosition(position) if they need to access the data associated with the selected item.
-     *
-     * @param parent   The CarouselAdapter where the click happened.
-     * @param view     The view within the CarouselAdapter that was clicked (this will be a view provided by the adapter)
-     * @param position The position of the view in the adapter.
-     * @param id       The row id of the item that was clicked.
-     */
-    void onItemClick(CarouselAdapter<?> parent, View view, int position, long id);
-  }
-
-  /**
-   * Register a callback to be invoked when an item in this CarouselAdapter has been clicked.
-   *
-   * @param listener The callback that will be invoked.
-   */
-  public void setOnItemClickListener(OnItemClickListener listener)
-  {
-    mOnItemClickListener = listener;
-  }
-
-  /**
-   * @return The callback to be invoked with an item in this CarouselAdapter has been clicked, or null id no callback has been set.
-   */
-  public final OnItemClickListener getOnItemClickListener()
-  {
-    return mOnItemClickListener;
-  }
-
-  /**
-   * Call the OnItemClickListener, if it is defined.
-   *
-   * @param view     The view within the CarouselAdapter that was clicked.
-   * @param position The position of the view in the adapter.
-   * @param id       The row id of the item that was clicked.
-   * @return True if there was an assigned OnItemClickListener that was called, false otherwise is returned.
-   */
-  public boolean performItemClick(View view, int position, long id)
-  {
-    if (mOnItemClickListener != null)
-    {
-      playSoundEffect(SoundEffectConstants.CLICK);
-      mOnItemClickListener.onItemClick(this, view, position, id);
-      return true;
-    }
-
-    return false;
-  }
-
-  /**
-   * Interface definition for a callback to be invoked when an item in this view has been clicked and held.
-   */
-  public interface OnItemLongClickListener
-  {
-
-    /**
-     * Callback method to be invoked when an item in this view has been clicked and held.
-     * <p/>
-     * Implementers can call getItemAtPosition(position) if they need to access the data associated with the selected item.
-     *
-     * @param parent   The AbsListView where the click happened
-     * @param view     The view within the AbsListView that was clicked
-     * @param position The position of the view in the list
-     * @param id       The row id of the item that was clicked
-     * @return true if the callback consumed the long click, false otherwise
-     */
-    boolean onItemLongClick(CarouselAdapter<?> parent, View view, int position, long id);
-  }
-
-  /**
-   * Register a callback to be invoked when an item in this CarouselAdapter has been clicked and held
-   *
-   * @param listener The callback that will run
-   */
-  public void setOnItemLongClickListener(OnItemLongClickListener listener)
-  {
-    if (!isLongClickable())
-    {
-      setLongClickable(true);
-    }
-    mOnItemLongClickListener = listener;
-  }
-
-  /**
-   * @return The callback to be invoked with an item in this CarouselAdapter has been clicked and held, or null id no callback as been set.
-   */
-  public final OnItemLongClickListener getOnItemLongClickListener()
-  {
-    return mOnItemLongClickListener;
-  }
-
-  /**
-   * Interface definition for a callback to be invoked when an item in this view has been selected.
-   */
-  public interface OnItemSelectedListener
-  {
-
-    /**
-     * Callback method to be invoked when an item in this view has been selected.
-     * <p/>
-     * Impelmenters can call getItemAtPosition(position) if they need to access the data associated with the selected item.
-     *
-     * @param parent   The CarouselAdapter where the selection happened
-     * @param view     The view within the CarouselAdapter that was clicked
-     * @param position The position of the view in the adapter
-     * @param id       The row id of the item that is selected
-     */
-    void onItemSelected(CarouselAdapter<?> parent, View view, int position, long id);
-
-    /**
-     * Callback method to be invoked when the selection disappears from this view. The selection can disappear for instance when touch is activated or
-     * when the adapter becomes empty.
-     *
-     * @param parent The CarouselAdapter that now contains no selected item.
-     */
-    void onNothingSelected(CarouselAdapter<?> parent);
-  }
-
-  /**
-   * Register a callback to be invoked when an item in this CarouselAdapter has been selected.
-   *
-   * @param listener The callback that will run
-   */
-  public void setOnItemSelectedListener(OnItemSelectedListener listener)
-  {
-    mOnItemSelectedListener = listener;
-  }
-
-  public final OnItemSelectedListener getOnItemSelectedListener()
-  {
-    return mOnItemSelectedListener;
-  }
 
   /**
    * Extra menu information provided to the
    * {@link android.view.View.OnCreateContextMenuListener#onCreateContextMenu(ContextMenu, View, ContextMenuInfo) } callback when a context menu is
    * brought up for this CarouselAdapter.
    */
-  public static class AdapterContextMenuInfo
+  private static class AdapterContextMenuInfo
       implements ContextMenu.ContextMenuInfo
   {
 
@@ -376,113 +57,406 @@ public abstract class CarouselAdapter<T extends Adapter>
      * The row id of the item for which the context menu is being displayed.
      */
     public long id;
+
+  }
+
+  private class AdapterDataSetObserver
+      extends DataSetObserver
+  {
+
+    private Parcelable mInstanceState = null;
+
+    @Override
+    public void onChanged()
+    {
+      dataChanged = true;
+      oldItemCount = itemCount;
+      itemCount = getAdapter().getCount();
+
+      // Detect the case where a cursor that was previously invalidated has
+      // been repopulated with new data.
+      if (CarouselAdapter.this.getAdapter().hasStableIds() == true && mInstanceState != null && oldItemCount == 0 && itemCount > 0)
+      {
+        CarouselAdapter.this.onRestoreInstanceState(mInstanceState);
+        mInstanceState = null;
+      }
+      else
+      {
+        rememberSyncState();
+      }
+
+      checkFocus();
+      requestLayout();
+    }
+
+    @Override
+    public void onInvalidated()
+    {
+      dataChanged = true;
+
+      if (CarouselAdapter.this.getAdapter().hasStableIds() == true)
+      {
+        // Remember the current state for the case where our hosting activity is being
+        // stopped and later restarted
+        mInstanceState = CarouselAdapter.this.onSaveInstanceState();
+      }
+
+      // Data is invalid so we should reset our state
+      oldItemCount = itemCount;
+      itemCount = 0;
+      selectedPosition = INVALID_POSITION;
+      selectedRowId = INVALID_ROW_ID;
+      nextSelectedPosition = INVALID_POSITION;
+      nextSelectedRowId = INVALID_ROW_ID;
+      needSync = false;
+
+      checkSelectionChanged();
+      checkFocus();
+      requestLayout();
+    }
+
+    public void clearSavedState()
+    {
+      mInstanceState = null;
+    }
+
+  }
+
+  private class SelectionNotifier
+      extends Handler
+      implements Runnable
+  {
+
+    @Override
+    public void run()
+    {
+      if (dataChanged == true)
+      {
+        // Data has changed between when this SelectionNotifier
+        // was posted and now. We need to wait until the CarouselAdapter
+        // has been synched to the new data.
+        post(this);
+      }
+      else
+      {
+        fireOnSelected();
+      }
+    }
+
   }
 
   /**
-   * Returns the adapter currently associated with this widget.
-   *
-   * @return The adapter used to provide this view's content.
+   * Interface definition for a callback to be invoked when an item in this CarouselAdapter has been clicked.
    */
-  public abstract T getAdapter();
-
-  /**
-   * Sets the adapter that provides the data and the views to represent the data in this widget.
-   *
-   * @param adapter The adapter to use to create this view's content.
-   */
-  public abstract void setAdapter(T adapter);
-
-  /**
-   * This method is not supported and throws an UnsupportedOperationException when called.
-   *
-   * @param child Ignored.
-   * @throws UnsupportedOperationException Every time this method is invoked.
-   */
-  @Override
-  public void addView(View child)
+  public static interface OnItemClickListener
   {
-    throw new UnsupportedOperationException("addView(View) is not supported in CarouselAdapter");
+
+    /**
+     * Callback method to be invoked when an item in this CarouselAdapter has been clicked.
+     * <p/>
+     * Implementers can call getItemAtPosition(position) if they need to access the data associated with the selected item.
+     *
+     * @param parent   The CarouselAdapter where the click happened.
+     * @param view     The view within the CarouselAdapter that was clicked (this will be a view provided by the adapter)
+     * @param position The position of the view in the adapter.
+     * @param id       The row id of the item that was clicked.
+     */
+    public void onItemClick(CarouselAdapter<?> parent, View view, int position, long id);
+
   }
 
   /**
-   * This method is not supported and throws an UnsupportedOperationException when called.
-   *
-   * @param child Ignored.
-   * @param index Ignored.
-   * @throws UnsupportedOperationException Every time this method is invoked.
+   * Interface definition for a callback to be invoked when an item in this view has been clicked and held.
    */
-  @Override
-  public void addView(View child, int index)
+  public static interface OnItemLongClickListener
   {
-    throw new UnsupportedOperationException("addView(View, int) is not supported in CarouselAdapter");
+
+    /**
+     * Callback method to be invoked when an item in this view has been clicked and held.
+     * <p/>
+     * Implementers can call getItemAtPosition(position) if they need to access the data associated with the selected item.
+     *
+     * @param parent   The AbsListView where the click happened
+     * @param view     The view within the AbsListView that was clicked
+     * @param position The position of the view in the list
+     * @param id       The row id of the item that was clicked
+     * @return true if the callback consumed the long click, false otherwise
+     */
+    public boolean onItemLongClick(CarouselAdapter<?> parent, View view, int position, long id);
+
   }
 
   /**
-   * This method is not supported and throws an UnsupportedOperationException when called.
-   *
-   * @param child  Ignored.
-   * @param params Ignored.
-   * @throws UnsupportedOperationException Every time this method is invoked.
+   * Interface definition for a callback to be invoked when an item in this view has been selected.
    */
-  @Override
-  public void addView(View child, LayoutParams params)
+  public static interface OnItemSelectedListener
   {
-    throw new UnsupportedOperationException("addView(View, LayoutParams) " + "is not supported in CarouselAdapter");
+
+    /**
+     * Callback method to be invoked when an item in this view has been selected.
+     * <p/>
+     * Implementers can call getItemAtPosition(position) if they need to access the data associated with the selected item.
+     *
+     * @param parent   The CarouselAdapter where the selection happened
+     * @param view     The view within the CarouselAdapter that was clicked
+     * @param position The position of the view in the adapter
+     * @param id       The row id of the item that is selected
+     */
+    public void onItemSelected(CarouselAdapter<?> parent, View view, int position, long id);
+
+    /**
+     * Callback method to be invoked when the selection disappears from this view. The selection can disappear for instance when touch is activated or
+     * when the adapter becomes empty.
+     *
+     * @param parent The CarouselAdapter that now contains no selected item.
+     */
+    public void onNothingSelected(CarouselAdapter<?> parent);
+
   }
 
   /**
-   * This method is not supported and throws an UnsupportedOperationException when called.
-   *
-   * @param child  Ignored.
-   * @param index  Ignored.
-   * @param params Ignored.
-   * @throws UnsupportedOperationException Every time this method is invoked.
+   * Represents an invalid position. All valid positions are in the range 0 to 1 less than the number of items in the current adapter.
    */
-  @Override
-  public void addView(View child, int index, LayoutParams params)
+  public static final int INVALID_POSITION = -1;
+
+  /**
+   * Represents an empty or invalid row id
+   */
+  public static final long INVALID_ROW_ID = Long.MIN_VALUE;
+
+  /**
+   * Sync based on the selected child
+   */
+  private static final int SYNC_SELECTED_POSITION = 0;
+
+  /**
+   * Sync based on the first child displayed
+   */
+  private static final int SYNC_FIRST_POSITION = 1;
+
+  /**
+   * Maximum amount of time to spend in {@link #findSyncPosition()}
+   */
+  private static final int SYNC_MAX_DURATION_MILLIS = 100;
+
+  /**
+   * The position of the first child displayed
+   */
+  private int firstPosition = 0;
+
+  /**
+   * The offset in pixels from the top of the CarouselAdapter to the top of the view to select during the next layout.
+   */
+  private int specificTop;
+
+  /**
+   * Position from which to start looking for syncRowId
+   */
+  private int syncPosition;
+
+  /**
+   * Row id to look for when data has changed
+   */
+  private long syncRowId = INVALID_ROW_ID;
+
+  /**
+   * Height of the view when syncPosition and syncRowId where set
+   */
+  private long syncHeight;
+
+  /**
+   * True if we need to sync to syncRowId
+   */
+  private boolean needSync = false;
+
+  /**
+   * Indicates whether to sync based on the selection or position. Possible values are {@link #SYNC_SELECTED_POSITION} or {@link #SYNC_FIRST_POSITION}
+   * .
+   */
+  private int syncMode;
+
+  /**
+   * Our height after the last layout
+   */
+  private int layoutHeight;
+
+  /**
+   * Indicates that this view is currently being laid out.
+   */
+  private boolean isInLayout = false;
+
+  /**
+   * The listener that receives notifications when an item is selected.
+   */
+  private OnItemSelectedListener onItemSelectedListener;
+
+  /**
+   * The listener that receives notifications when an item is clicked.
+   */
+  private OnItemClickListener onItemClickListener;
+
+  /**
+   * The listener that receives notifications when an item is long clicked.
+   */
+  private OnItemLongClickListener onItemLongClickListener;
+
+  /**
+   * True if the data has changed since the last layout
+   */
+  private boolean dataChanged;
+
+  /**
+   * The position within the adapter's data set of the item to select during the next layout.
+   */
+  private int nextSelectedPosition = INVALID_POSITION;
+
+  /**
+   * The item id of the item to select during the next layout.
+   */
+  private long nextSelectedRowId = INVALID_ROW_ID;
+
+  /**
+   * The position within the adapter's data set of the currently selected item.
+   */
+  private int selectedPosition = INVALID_POSITION;
+
+  /**
+   * The item id of the currently selected item.
+   */
+  private long selectedRowId = INVALID_ROW_ID;
+
+  /**
+   * View to show if there are no items to show.
+   */
+  private View emptyView;
+
+  /**
+   * The number of items in the current adapter.
+   */
+  private int itemCount;
+
+  /**
+   * The number of items in the adapter before a data changed event occured.
+   */
+  private int oldItemCount;
+
+  /**
+   * The last selected position we used when notifying
+   */
+  private int oldSelectedPosition = INVALID_POSITION;
+
+  /**
+   * The id of the last selected position we used when notifying
+   */
+  private long oldSelectedRowId = INVALID_ROW_ID;
+
+  /**
+   * Indicates what focusable state is requested when calling setFocusable(). In addition to this, this view has other criteria for actually
+   * determining the focusable state (such as whether its empty or the text filter is shown).
+   *
+   * @see #setFocusable(boolean)
+   * @see #checkFocus()
+   */
+  private boolean desiredFocusableState;
+
+  private boolean desiredFocusableInTouchModeState;
+
+  private SelectionNotifier selectionNotifier;
+
+  /**
+   * When set to true, calls to requestLayout() will not propagate up the parent hierarchy. This is used to layout the children during a layout pass.
+   */
+  private boolean blockLayoutRequests = false;
+
+  public CarouselAdapter(Context context)
   {
-    throw new UnsupportedOperationException("addView(View, int, LayoutParams) " + "is not supported in CarouselAdapter");
+    super(context);
+  }
+
+  public CarouselAdapter(Context context, AttributeSet attrs)
+  {
+    super(context, attrs);
+  }
+
+  public CarouselAdapter(Context context, AttributeSet attrs, int defStyle)
+  {
+    super(context, attrs, defStyle);
   }
 
   /**
-   * This method is not supported and throws an UnsupportedOperationException when called.
+   * Register a callback to be invoked when an item in this CarouselAdapter has been clicked.
    *
-   * @param child Ignored.
-   * @throws UnsupportedOperationException Every time this method is invoked.
+   * @param listener The callback that will be invoked.
    */
-  @Override
-  public void removeView(View child)
+  public void setOnItemClickListener(OnItemClickListener listener)
   {
-    throw new UnsupportedOperationException("removeView(View) is not supported in CarouselAdapter");
+    onItemClickListener = listener;
   }
 
   /**
-   * This method is not supported and throws an UnsupportedOperationException when called.
-   *
-   * @param index Ignored.
-   * @throws UnsupportedOperationException Every time this method is invoked.
+   * @return The callback to be invoked with an item in this CarouselAdapter has been clicked, or null id no callback has been set.
    */
-  @Override
-  public void removeViewAt(int index)
+  public final OnItemClickListener getOnItemClickListener()
   {
-    throw new UnsupportedOperationException("removeViewAt(int) is not supported in CarouselAdapter");
+    return onItemClickListener;
   }
 
   /**
-   * This method is not supported and throws an UnsupportedOperationException when called.
+   * Call the OnItemClickListener, if it is defined.
    *
-   * @throws UnsupportedOperationException Every time this method is invoked.
+   * @param view     The view within the CarouselAdapter that was clicked.
+   * @param position The position of the view in the adapter.
+   * @param id       The row id of the item that was clicked.
+   * @return True if there was an assigned OnItemClickListener that was called, false otherwise is returned.
    */
-  @Override
-  public void removeAllViews()
+  public boolean performItemClick(View view, int position, long id)
   {
-    throw new UnsupportedOperationException("removeAllViews() is not supported in CarouselAdapter");
+    if (onItemClickListener != null)
+    {
+      playSoundEffect(SoundEffectConstants.CLICK);
+      onItemClickListener.onItemClick(this, view, position, id);
+      return true;
+    }
+
+    return false;
   }
 
-  @Override
-  protected void onLayout(boolean changed, int left, int top, int right, int bottom)
+  /**
+   * Register a callback to be invoked when an item in this CarouselAdapter has been clicked and held
+   *
+   * @param listener The callback that will run
+   */
+  public void setOnItemLongClickListener(OnItemLongClickListener listener)
   {
-    mLayoutHeight = getHeight();
+    if (!isLongClickable())
+    {
+      setLongClickable(true);
+    }
+
+    onItemLongClickListener = listener;
+  }
+
+  /**
+   * @return The callback to be invoked with an item in this CarouselAdapter has been clicked and held, or null id no callback as been set.
+   */
+  public final OnItemLongClickListener getOnItemLongClickListener()
+  {
+    return onItemLongClickListener;
+  }
+
+  /**
+   * Register a callback to be invoked when an item in this CarouselAdapter has been selected.
+   *
+   * @param listener The callback that will run
+   */
+  public void setOnItemSelectedListener(OnItemSelectedListener listener)
+  {
+    onItemSelectedListener = listener;
+  }
+
+  public final OnItemSelectedListener getOnItemSelectedListener()
+  {
+    return onItemSelectedListener;
   }
 
   /**
@@ -490,25 +464,18 @@ public abstract class CarouselAdapter<T extends Adapter>
    *
    * @return int Position (starting at 0), or {@link #INVALID_POSITION} if there is nothing selected.
    */
-  @ViewDebug.CapturedViewProperty
   public int getSelectedItemPosition()
   {
-    return mNextSelectedPosition;
+    return nextSelectedPosition;
   }
 
   /**
    * @return The id corresponding to the currently selected item, or {@link #INVALID_ROW_ID} if nothing is selected.
    */
-  @ViewDebug.CapturedViewProperty
   public long getSelectedItemId()
   {
-    return mNextSelectedRowId;
+    return nextSelectedRowId;
   }
-
-  /**
-   * @return The view corresponding to the currently selected item, or null if nothing is selected
-   */
-  public abstract View getSelectedView();
 
   /**
    * @return The data corresponding to the currently selected item, or null if there is nothing selected.
@@ -531,10 +498,9 @@ public abstract class CarouselAdapter<T extends Adapter>
    * @return The number of items owned by the Adapter associated with this CarouselAdapter. (This is the number of data items, which may be larger
    * than the number of visible view.)
    */
-  @ViewDebug.CapturedViewProperty
   public int getCount()
   {
-    return mItemCount;
+    return itemCount;
   }
 
   /**
@@ -547,15 +513,17 @@ public abstract class CarouselAdapter<T extends Adapter>
   public int getPositionForView(View view)
   {
     View listItem = view;
+
     try
     {
       View v;
+
       while (!(v = (View) listItem.getParent()).equals(this))
       {
         listItem = v;
       }
     }
-    catch (ClassCastException e)
+    catch (ClassCastException exception)
     {
       // We made it up to the window without find this list view
       return INVALID_POSITION;
@@ -563,11 +531,12 @@ public abstract class CarouselAdapter<T extends Adapter>
 
     // Search the children for the list item
     final int childCount = getChildCount();
+
     for (int i = 0; i < childCount; i++)
     {
-      if (getChildAt(i).equals(listItem))
+      if (getChildAt(i).equals(listItem) == true)
       {
-        return mFirstPosition + i;
+        return firstPosition + i;
       }
     }
 
@@ -582,7 +551,7 @@ public abstract class CarouselAdapter<T extends Adapter>
    */
   public int getFirstVisiblePosition()
   {
-    return mFirstPosition;
+    return firstPosition;
   }
 
   /**
@@ -592,23 +561,15 @@ public abstract class CarouselAdapter<T extends Adapter>
    */
   public int getLastVisiblePosition()
   {
-    return mFirstPosition + getChildCount() - 1;
+    return firstPosition + getChildCount() - 1;
   }
-
-  /**
-   * Sets the currently selected item. To support accessibility subclasses that override this method must invoke the overriden super method first.
-   *
-   * @param position Index (starting at 0) of the data item to be selected.
-   */
-  public abstract void setSelection(int position);
 
   /**
    * Sets the view to show if the adapter is empty
    */
   public void setEmptyView(View emptyView)
   {
-    mEmptyView = emptyView;
-
+    this.emptyView = emptyView;
     final T adapter = getAdapter();
     final boolean empty = ((adapter == null) || adapter.isEmpty());
     updateEmptyStatus(empty);
@@ -622,7 +583,7 @@ public abstract class CarouselAdapter<T extends Adapter>
    */
   public View getEmptyView()
   {
-    return mEmptyView;
+    return emptyView;
   }
 
   /**
@@ -630,54 +591,25 @@ public abstract class CarouselAdapter<T extends Adapter>
    *
    * @return True if the view is in filter mode, false otherwise.
    */
-  boolean isInFilterMode()
+  private boolean isInFilterMode()
   {
     return false;
   }
 
-  @Override
-  public void setFocusable(boolean focusable)
+  private void checkFocus()
   {
     final T adapter = getAdapter();
     final boolean empty = adapter == null || adapter.getCount() == 0;
-
-    mDesiredFocusableState = focusable;
-    if (!focusable)
-    {
-      mDesiredFocusableInTouchModeState = false;
-    }
-
-    super.setFocusable(focusable && (!empty || isInFilterMode()));
-  }
-
-  @Override
-  public void setFocusableInTouchMode(boolean focusable)
-  {
-    final T adapter = getAdapter();
-    final boolean empty = adapter == null || adapter.getCount() == 0;
-
-    mDesiredFocusableInTouchModeState = focusable;
-    if (focusable)
-    {
-      mDesiredFocusableState = true;
-    }
-
-    super.setFocusableInTouchMode(focusable && (!empty || isInFilterMode()));
-  }
-
-  void checkFocus()
-  {
-    final T adapter = getAdapter();
-    final boolean empty = adapter == null || adapter.getCount() == 0;
-    final boolean focusable = !empty || isInFilterMode();
+    final boolean focusable = empty == false || isInFilterMode() == true;
     // The order in which we set focusable in touch mode/focusable may matter
     // for the client, see View.setFocusableInTouchMode() comments for more
     // details
-    super.setFocusableInTouchMode(focusable && mDesiredFocusableInTouchModeState);
-    super.setFocusable(focusable && mDesiredFocusableState);
-    if (mEmptyView != null)
+    super.setFocusableInTouchMode(focusable == true && desiredFocusableInTouchModeState == true);
+    super.setFocusable(focusable == true && desiredFocusableState == true);
+
+    if (emptyView != null)
     {
-      updateEmptyStatus((adapter == null) || adapter.isEmpty());
+      updateEmptyStatus((adapter == null) || adapter.isEmpty() == true);
     }
   }
 
@@ -688,16 +620,16 @@ public abstract class CarouselAdapter<T extends Adapter>
   @SuppressLint("WrongCall")
   private void updateEmptyStatus(boolean empty)
   {
-    if (isInFilterMode())
+    if (isInFilterMode() == true)
     {
       empty = false;
     }
 
-    if (empty)
+    if (empty == true)
     {
-      if (mEmptyView != null)
+      if (emptyView != null)
       {
-        mEmptyView.setVisibility(View.VISIBLE);
+        emptyView.setVisibility(View.VISIBLE);
         setVisibility(View.GONE);
       }
       else
@@ -709,17 +641,18 @@ public abstract class CarouselAdapter<T extends Adapter>
       // We are now GONE, so pending layouts will not be dispatched.
       // Force one here to make sure that the state of the list matches
       // the state of the adapter.
-      if (mDataChanged)
+      if (dataChanged == true)
       {
         this.onLayout(false, getLeft(), getTop(), getRight(), getBottom());
       }
     }
     else
     {
-      if (mEmptyView != null)
+      if (emptyView != null)
       {
-        mEmptyView.setVisibility(View.GONE);
+        emptyView.setVisibility(View.GONE);
       }
+
       setVisibility(View.VISIBLE);
     }
   }
@@ -732,14 +665,367 @@ public abstract class CarouselAdapter<T extends Adapter>
    */
   public Object getItemAtPosition(int position)
   {
-    T adapter = getAdapter();
+    final T adapter = getAdapter();
     return (adapter == null || position < 0) ? null : adapter.getItem(position);
+  }
+
+  private void selectionChanged()
+  {
+    if (onItemSelectedListener != null)
+    {
+      if (isInLayout == true || blockLayoutRequests == true)
+      {
+        // If we are in a layout traversal, defer notification
+        // by posting. This ensures that the view tree is
+        // in a consistent state and is able to accomodate
+        // new layout or invalidate requests.
+        if (selectionNotifier == null)
+        {
+          selectionNotifier = new SelectionNotifier();
+        }
+
+        selectionNotifier.post(selectionNotifier);
+      }
+      else
+      {
+        fireOnSelected();
+      }
+    }
+
+    // we fire selection events here not in View
+    if (selectedPosition != ListView.INVALID_POSITION && isShown() == true && isInTouchMode() == false)
+    {
+      sendAccessibilityEvent(AccessibilityEvent.TYPE_VIEW_SELECTED);
+    }
+  }
+
+  private void fireOnSelected()
+  {
+    if (onItemSelectedListener == null)
+    {
+      return;
+    }
+
+    final int selection = this.getSelectedItemPosition();
+
+    if (selection >= 0)
+    {
+      final View v = getSelectedView();
+      onItemSelectedListener.onItemSelected(this, v, selection, getAdapter().getItemId(selection));
+    }
+    else
+    {
+      onItemSelectedListener.onNothingSelected(this);
+    }
   }
 
   public long getItemIdAtPosition(int position)
   {
-    T adapter = getAdapter();
+    final T adapter = getAdapter();
     return (adapter == null || position < 0) ? INVALID_ROW_ID : adapter.getItemId(position);
+  }
+
+  private void handleDataChanged()
+  {
+    final int count = itemCount;
+    boolean found = false;
+
+    if (count > 0)
+    {
+      int newPos;
+
+      // Find the row we are supposed to sync to
+      if (needSync == true)
+      {
+        // Update this first, since setNextSelectedPositionInt inspects it
+        needSync = false;
+
+        // See if we can find a position in the new data with the same id as the old selection
+        newPos = findSyncPosition();
+
+        if (newPos >= 0)
+        {
+          // Verify that new selection is selectable
+          final int selectablePos = lookForSelectablePosition(newPos);
+
+          if (selectablePos == newPos)
+          {
+            // Same row id is selected
+            setNextSelectedPositionInt(newPos);
+            found = true;
+          }
+        }
+      }
+      if (found == false)
+      {
+        // Try to use the same position if we can't find matching data
+        newPos = getSelectedItemPosition();
+
+        // Pin position to the available range
+        if (newPos >= count)
+        {
+          newPos = count - 1;
+        }
+
+        if (newPos < 0)
+        {
+          newPos = 0;
+        }
+
+        // Make sure we select something selectable -- first look down
+        int selectablePos = lookForSelectablePosition(newPos);
+
+        if (selectablePos < 0)
+        {
+          // Looking down didn't work -- try looking up
+          selectablePos = lookForSelectablePosition(newPos);
+        }
+        if (selectablePos >= 0)
+        {
+          setNextSelectedPositionInt(selectablePos);
+          checkSelectionChanged();
+          found = true;
+        }
+      }
+    }
+    if (found == false)
+    {
+      // Nothing is selected
+      selectedPosition = INVALID_POSITION;
+      selectedRowId = INVALID_ROW_ID;
+      nextSelectedPosition = INVALID_POSITION;
+      nextSelectedRowId = INVALID_ROW_ID;
+      needSync = false;
+      checkSelectionChanged();
+    }
+  }
+
+  private void checkSelectionChanged()
+  {
+    if ((selectedPosition != oldSelectedPosition) || (selectedRowId != oldSelectedRowId))
+    {
+      selectionChanged();
+      oldSelectedPosition = selectedPosition;
+      oldSelectedRowId = selectedRowId;
+    }
+  }
+
+  /**
+   * Searches the adapter for a position matching syncRowId. The search starts at syncPosition and then alternates between moving up and moving down
+   * until 1) we find the right position, or 2) we run out of time, or 3) we have looked at every position
+   *
+   * @return Position of the row that matches syncRowId, or {@link #INVALID_POSITION} if it can't be found
+   */
+  private int findSyncPosition()
+  {
+    final int count = itemCount;
+
+    if (count == 0)
+    {
+      return INVALID_POSITION;
+    }
+
+    final long idToMatch = syncRowId;
+
+    // If there isn't a selection don't hunt for it
+    if (idToMatch == INVALID_ROW_ID)
+    {
+      return INVALID_POSITION;
+    }
+
+    // Pin seed to reasonable values
+    int seed = syncPosition;
+    seed = Math.max(0, seed);
+    seed = Math.min(count - 1, seed);
+
+    long rowId;
+    final long endTime = SystemClock.uptimeMillis() + SYNC_MAX_DURATION_MILLIS;
+
+    // first position scanned so far
+    int first = seed;
+
+    // last position scanned so far
+    int last = seed;
+
+    // True if we should move down on the next iteration
+    boolean next = false;
+
+    // True when we have looked at the first item in the data
+    boolean hitFirst;
+
+    // True when we have looked at the last item in the data
+    boolean hitLast;
+
+    // Get the item ID locally (instead of getItemIdAtPosition), so
+    // we need the adapter
+    final T adapter = getAdapter();
+
+    if (adapter == null)
+    {
+      return INVALID_POSITION;
+    }
+
+    while (SystemClock.uptimeMillis() <= endTime)
+    {
+      rowId = adapter.getItemId(seed);
+
+      if (rowId == idToMatch)
+      {
+        // Found it!
+        return seed;
+      }
+
+      hitLast = last == count - 1;
+      hitFirst = first == 0;
+
+      if (hitLast == true && hitFirst == true)
+      {
+        // Looked at everything
+        break;
+      }
+
+      if (hitFirst == true || (next == true && hitLast == false))
+      {
+        // Either we hit the top, or we are trying to move down
+        last++;
+        seed = last;
+        // Try going up next time
+        next = false;
+      }
+      else if (hitLast == true || (next == false && hitFirst == false))
+      {
+        // Either we hit the bottom, or we are trying to move up
+        first--;
+        seed = first;
+        // Try going down next time
+        next = true;
+      }
+
+    }
+
+    return INVALID_POSITION;
+  }
+
+  /**
+   * Find a position that can be selected (i.e., is not a separator).
+   *
+   * @param position The starting position to look at.
+   * @return The next selectable position starting at position and then searching either up or down. Returns {@link #INVALID_POSITION} if nothing can
+   * be found.
+   */
+  private int lookForSelectablePosition(int position)
+  {
+    return position;
+  }
+
+  /**
+   * Utility to keep selectedPosition and selectedRowId in sync
+   *
+   * @param position Our current position
+   */
+  private void setSelectedPositionInt(int position)
+  {
+    selectedPosition = position;
+    selectedRowId = getItemIdAtPosition(position);
+  }
+
+  /**
+   * Utility to keep nextSelectedPosition and nextSelectedRowId in sync
+   *
+   * @param position Intended value for selectedPosition the next time we go through layout
+   */
+  private void setNextSelectedPositionInt(int position)
+  {
+    nextSelectedPosition = position;
+    nextSelectedRowId = getItemIdAtPosition(position);
+
+    // If we are trying to sync to the selection, update that too
+    if (needSync == true && syncMode == SYNC_SELECTED_POSITION && position >= 0)
+    {
+      syncPosition = position;
+      syncRowId = nextSelectedRowId;
+    }
+  }
+
+  /**
+   * Remember enough information to restore the screen state when the data has changed.
+   */
+  private void rememberSyncState()
+  {
+    if (getChildCount() > 0)
+    {
+      needSync = true;
+      syncHeight = layoutHeight;
+
+      if (selectedPosition >= 0)
+      {
+        // Sync the selection state
+        final View v = getChildAt(selectedPosition - firstPosition);
+        syncRowId = nextSelectedRowId;
+        syncPosition = nextSelectedPosition;
+
+        if (v != null)
+        {
+          specificTop = v.getTop();
+        }
+
+        syncMode = SYNC_SELECTED_POSITION;
+      }
+      else
+      {
+        // Sync the based on the offset of the first view
+        final View v = getChildAt(0);
+        final T adapter = getAdapter();
+
+        if (firstPosition >= 0 && firstPosition < adapter.getCount())
+        {
+          syncRowId = adapter.getItemId(firstPosition);
+        }
+        else
+        {
+          syncRowId = NO_ID;
+        }
+
+        syncPosition = firstPosition;
+
+        if (v != null)
+        {
+          specificTop = v.getTop();
+        }
+
+        syncMode = SYNC_FIRST_POSITION;
+      }
+    }
+  }
+
+  @Override
+  public void setFocusable(boolean focusable)
+  {
+    final T adapter = getAdapter();
+    final boolean empty = adapter == null || adapter.getCount() == 0;
+    desiredFocusableState = focusable;
+
+    if (focusable == false)
+    {
+      desiredFocusableInTouchModeState = false;
+    }
+
+    super.setFocusable(focusable == true && (empty == false || isInFilterMode() == true));
+  }
+
+  @Override
+  public void setFocusableInTouchMode(boolean focusable)
+  {
+    final T adapter = getAdapter();
+    final boolean empty = adapter == null || adapter.getCount() == 0;
+    desiredFocusableInTouchModeState = focusable;
+
+    if (focusable == true)
+    {
+      desiredFocusableState = true;
+    }
+
+    super.setFocusableInTouchMode(focusable == true && (empty == false || isInFilterMode() == true));
   }
 
   @Override
@@ -766,141 +1052,11 @@ public abstract class CarouselAdapter<T extends Adapter>
     dispatchThawSelfOnly(container);
   }
 
-  class AdapterDataSetObserver
-      extends DataSetObserver
-  {
-
-    private Parcelable mInstanceState = null;
-
-    @Override
-    public void onChanged()
-    {
-      mDataChanged = true;
-      mOldItemCount = mItemCount;
-      mItemCount = getAdapter().getCount();
-
-      // Detect the case where a cursor that was previously invalidated has
-      // been repopulated with new data.
-      if (CarouselAdapter.this.getAdapter().hasStableIds() && mInstanceState != null && mOldItemCount == 0 && mItemCount > 0)
-      {
-        CarouselAdapter.this.onRestoreInstanceState(mInstanceState);
-        mInstanceState = null;
-      }
-      else
-      {
-        rememberSyncState();
-      }
-      checkFocus();
-      requestLayout();
-    }
-
-    @Override
-    public void onInvalidated()
-    {
-      mDataChanged = true;
-
-      if (CarouselAdapter.this.getAdapter().hasStableIds())
-      {
-        // Remember the current state for the case where our hosting activity is being
-        // stopped and later restarted
-        mInstanceState = CarouselAdapter.this.onSaveInstanceState();
-      }
-
-      // Data is invalid so we should reset our state
-      mOldItemCount = mItemCount;
-      mItemCount = 0;
-      mSelectedPosition = INVALID_POSITION;
-      mSelectedRowId = INVALID_ROW_ID;
-      mNextSelectedPosition = INVALID_POSITION;
-      mNextSelectedRowId = INVALID_ROW_ID;
-      mNeedSync = false;
-      checkSelectionChanged();
-
-      checkFocus();
-      requestLayout();
-    }
-
-    public void clearSavedState()
-    {
-      mInstanceState = null;
-    }
-  }
-
-  @SuppressLint("HandlerLeak")
-  private class SelectionNotifier
-      extends Handler
-      implements Runnable
-  {
-
-    @Override
-    public void run()
-    {
-      if (mDataChanged)
-      {
-        // Data has changed between when this SelectionNotifier
-        // was posted and now. We need to wait until the CarouselAdapter
-        // has been synched to the new data.
-        post(this);
-      }
-      else
-      {
-        fireOnSelected();
-      }
-    }
-  }
-
-  void selectionChanged()
-  {
-    if (mOnItemSelectedListener != null)
-    {
-      if (mInLayout || mBlockLayoutRequests)
-      {
-        // If we are in a layout traversal, defer notification
-        // by posting. This ensures that the view tree is
-        // in a consistent state and is able to accomodate
-        // new layout or invalidate requests.
-        if (mSelectionNotifier == null)
-        {
-          mSelectionNotifier = new SelectionNotifier();
-        }
-        mSelectionNotifier.post(mSelectionNotifier);
-      }
-      else
-      {
-        fireOnSelected();
-      }
-    }
-
-    // we fire selection events here not in View
-    if (mSelectedPosition != ListView.INVALID_POSITION && isShown() && !isInTouchMode())
-    {
-      sendAccessibilityEvent(AccessibilityEvent.TYPE_VIEW_SELECTED);
-    }
-  }
-
-  private void fireOnSelected()
-  {
-    if (mOnItemSelectedListener == null)
-    {
-      return;
-    }
-
-    int selection = this.getSelectedItemPosition();
-    if (selection >= 0)
-    {
-      View v = getSelectedView();
-      mOnItemSelectedListener.onItemSelected(this, v, selection, getAdapter().getItemId(selection));
-    }
-    else
-    {
-      mOnItemSelectedListener.onNothingSelected(this);
-    }
-  }
-
   @Override
   public boolean dispatchPopulateAccessibilityEvent(AccessibilityEvent event)
   {
     boolean populated = false;
+
     // This is an exceptional case which occurs when a window gets the
     // focus and sends a focus event via its focused child to announce
     // current focus/selection. CarouselAdapter fires selection but not focus
@@ -912,18 +1068,20 @@ public abstract class CarouselAdapter<T extends Adapter>
 
     // we send selection events only from CarouselAdapter to avoid
     // generation of such event for each child
-    View selectedView = getSelectedView();
+    final View selectedView = getSelectedView();
+
     if (selectedView != null)
     {
       populated = selectedView.dispatchPopulateAccessibilityEvent(event);
     }
 
-    if (!populated)
+    if (populated == false)
     {
       if (selectedView != null)
       {
         event.setEnabled(selectedView.isEnabled());
       }
+
       event.setItemCount(getCount());
       event.setCurrentItemIndex(getSelectedItemPosition());
     }
@@ -934,270 +1092,32 @@ public abstract class CarouselAdapter<T extends Adapter>
   @Override
   protected boolean canAnimate()
   {
-    return super.canAnimate() && mItemCount > 0;
-  }
-
-  void handleDataChanged()
-  {
-    final int count = mItemCount;
-    boolean found = false;
-
-    if (count > 0)
-    {
-
-      int newPos;
-
-      // Find the row we are supposed to sync to
-      if (mNeedSync)
-      {
-        // Update this first, since setNextSelectedPositionInt inspects
-        // it
-        mNeedSync = false;
-
-        // See if we can find a position in the new data with the same
-        // id as the old selection
-        newPos = findSyncPosition();
-        if (newPos >= 0)
-        {
-          // Verify that new selection is selectable
-          int selectablePos = lookForSelectablePosition(newPos, true);
-          if (selectablePos == newPos)
-          {
-            // Same row id is selected
-            setNextSelectedPositionInt(newPos);
-            found = true;
-          }
-        }
-      }
-      if (!found)
-      {
-        // Try to use the same position if we can't find matching data
-        newPos = getSelectedItemPosition();
-
-        // Pin position to the available range
-        if (newPos >= count)
-        {
-          newPos = count - 1;
-        }
-        if (newPos < 0)
-        {
-          newPos = 0;
-        }
-
-        // Make sure we select something selectable -- first look down
-        int selectablePos = lookForSelectablePosition(newPos, true);
-        if (selectablePos < 0)
-        {
-          // Looking down didn't work -- try looking up
-          selectablePos = lookForSelectablePosition(newPos, false);
-        }
-        if (selectablePos >= 0)
-        {
-          setNextSelectedPositionInt(selectablePos);
-          checkSelectionChanged();
-          found = true;
-        }
-      }
-    }
-    if (!found)
-    {
-      // Nothing is selected
-      mSelectedPosition = INVALID_POSITION;
-      mSelectedRowId = INVALID_ROW_ID;
-      mNextSelectedPosition = INVALID_POSITION;
-      mNextSelectedRowId = INVALID_ROW_ID;
-      mNeedSync = false;
-      checkSelectionChanged();
-    }
-  }
-
-  void checkSelectionChanged()
-  {
-    if ((mSelectedPosition != mOldSelectedPosition) || (mSelectedRowId != mOldSelectedRowId))
-    {
-      selectionChanged();
-      mOldSelectedPosition = mSelectedPosition;
-      mOldSelectedRowId = mSelectedRowId;
-    }
+    return super.canAnimate() == true && itemCount > 0;
   }
 
   /**
-   * Searches the adapter for a position matching mSyncRowId. The search starts at mSyncPosition and then alternates between moving up and moving down
-   * until 1) we find the right position, or 2) we run out of time, or 3) we have looked at every position
+   * Returns the adapter currently associated with this widget.
    *
-   * @return Position of the row that matches mSyncRowId, or {@link #INVALID_POSITION} if it can't be found
+   * @return The adapter used to provide this view's content.
    */
-  int findSyncPosition()
-  {
-    int count = mItemCount;
-
-    if (count == 0)
-    {
-      return INVALID_POSITION;
-    }
-
-    long idToMatch = mSyncRowId;
-    int seed = mSyncPosition;
-
-    // If there isn't a selection don't hunt for it
-    if (idToMatch == INVALID_ROW_ID)
-    {
-      return INVALID_POSITION;
-    }
-
-    // Pin seed to reasonable values
-    seed = Math.max(0, seed);
-    seed = Math.min(count - 1, seed);
-
-    long endTime = SystemClock.uptimeMillis() + SYNC_MAX_DURATION_MILLIS;
-
-    long rowId;
-
-    // first position scanned so far
-    int first = seed;
-
-    // last position scanned so far
-    int last = seed;
-
-    // True if we should move down on the next iteration
-    boolean next = false;
-
-    // True when we have looked at the first item in the data
-    boolean hitFirst;
-
-    // True when we have looked at the last item in the data
-    boolean hitLast;
-
-    // Get the item ID locally (instead of getItemIdAtPosition), so
-    // we need the adapter
-    T adapter = getAdapter();
-    if (adapter == null)
-    {
-      return INVALID_POSITION;
-    }
-
-    while (SystemClock.uptimeMillis() <= endTime)
-    {
-      rowId = adapter.getItemId(seed);
-      if (rowId == idToMatch)
-      {
-        // Found it!
-        return seed;
-      }
-
-      hitLast = last == count - 1;
-      hitFirst = first == 0;
-
-      if (hitLast && hitFirst)
-      {
-        // Looked at everything
-        break;
-      }
-
-      if (hitFirst || (next && !hitLast))
-      {
-        // Either we hit the top, or we are trying to move down
-        last++;
-        seed = last;
-        // Try going up next time
-        next = false;
-      }
-      else if (hitLast || (!next && !hitFirst))
-      {
-        // Either we hit the bottom, or we are trying to move up
-        first--;
-        seed = first;
-        // Try going down next time
-        next = true;
-      }
-
-    }
-
-    return INVALID_POSITION;
-  }
+  public abstract T getAdapter();
 
   /**
-   * Find a position that can be selected (i.e., is not a separator).
+   * Sets the adapter that provides the data and the views to represent the data in this widget.
    *
-   * @param position The starting position to look at.
-   * @param lookDown Whether to look down for other positions.
-   * @return The next selectable position starting at position and then searching either up or down. Returns {@link #INVALID_POSITION} if nothing can
-   * be found.
+   * @param adapter The adapter to use to create this view's content.
    */
-  int lookForSelectablePosition(int position, boolean lookDown)
-  {
-    return position;
-  }
+  public abstract void setAdapter(T adapter);
 
   /**
-   * Utility to keep mSelectedPosition and mSelectedRowId in sync
+   * @return The view corresponding to the currently selected item, or null if nothing is selected
+   */
+  public abstract View getSelectedView();
+
+  /**
+   * Sets the currently selected item. To support accessibility subclasses that override this method must invoke the overriden super method first.
    *
-   * @param position Our current position
+   * @param position Index (starting at 0) of the data item to be selected.
    */
-  void setSelectedPositionInt(int position)
-  {
-    mSelectedPosition = position;
-    mSelectedRowId = getItemIdAtPosition(position);
-  }
-
-  /**
-   * Utility to keep mNextSelectedPosition and mNextSelectedRowId in sync
-   *
-   * @param position Intended value for mSelectedPosition the next time we go through layout
-   */
-  void setNextSelectedPositionInt(int position)
-  {
-    mNextSelectedPosition = position;
-    mNextSelectedRowId = getItemIdAtPosition(position);
-    // If we are trying to sync to the selection, update that too
-    if (mNeedSync && mSyncMode == SYNC_SELECTED_POSITION && position >= 0)
-    {
-      mSyncPosition = position;
-      mSyncRowId = mNextSelectedRowId;
-    }
-  }
-
-  /**
-   * Remember enough information to restore the screen state when the data has changed.
-   */
-  void rememberSyncState()
-  {
-    if (getChildCount() > 0)
-    {
-      mNeedSync = true;
-      mSyncHeight = mLayoutHeight;
-      if (mSelectedPosition >= 0)
-      {
-        // Sync the selection state
-        View v = getChildAt(mSelectedPosition - mFirstPosition);
-        mSyncRowId = mNextSelectedRowId;
-        mSyncPosition = mNextSelectedPosition;
-        if (v != null)
-        {
-          mSpecificTop = v.getTop();
-        }
-        mSyncMode = SYNC_SELECTED_POSITION;
-      }
-      else
-      {
-        // Sync the based on the offset of the first view
-        View v = getChildAt(0);
-        T adapter = getAdapter();
-        if (mFirstPosition >= 0 && mFirstPosition < adapter.getCount())
-        {
-          mSyncRowId = adapter.getItemId(mFirstPosition);
-        }
-        else
-        {
-          mSyncRowId = NO_ID;
-        }
-        mSyncPosition = mFirstPosition;
-        if (v != null)
-        {
-          mSpecificTop = v.getTop();
-        }
-        mSyncMode = SYNC_FIRST_POSITION;
-      }
-    }
-  }
+  public abstract void setSelection(int position);
 }

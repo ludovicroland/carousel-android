@@ -268,7 +268,7 @@ public final class Carousel
 
     if (isPressed() && mSelectedPosition >= 0)
     {
-      int index = mSelectedPosition - mFirstPosition;
+      int index = mSelectedPosition - firstPosition;
       View v = getChildAt(index);
       return dispatchLongPress(v, mSelectedPosition, mSelectedRowId);
     }
@@ -332,7 +332,7 @@ public final class Carousel
             }
           }, ViewConfiguration.getPressedStateDuration());
 
-          int selectedIndex = mSelectedPosition - mFirstPosition;
+          int selectedIndex = mSelectedPosition - firstPosition;
           performItemClick(getChildAt(selectedIndex), mSelectedPosition, mAdapter.getItemId(mSelectedPosition));
         }
       }
@@ -826,7 +826,7 @@ public final class Carousel
 
     if (mDownTouchPosition >= 0)
     {
-      mDownTouchView = getChildAt(mDownTouchPosition - mFirstPosition);
+      mDownTouchView = getChildAt(mDownTouchPosition - firstPosition);
       mDownTouchView.setPressed(true);
     }
 
@@ -1127,7 +1127,7 @@ public final class Carousel
   int getLimitedMotionScrollAmount(boolean motionToLeft, int deltaX)
   {
     int extremeItemPosition = motionToLeft ? mItemCount - 1 : 0;
-    View extremeChild = getChildAt(extremeItemPosition - mFirstPosition);
+    View extremeChild = getChildAt(extremeItemPosition - firstPosition);
 
     if (extremeChild == null)
     {
@@ -1461,7 +1461,7 @@ public final class Carousel
 
     View oldSelectedChild = mSelectedChild;
 
-    View child = mSelectedChild = getChildAt(mSelectedPosition - mFirstPosition);
+    View child = mSelectedChild = getChildAt(mSelectedPosition - firstPosition);
     if (child == null)
     {
       return;

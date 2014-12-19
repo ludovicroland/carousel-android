@@ -130,7 +130,7 @@ public abstract class CarouselSpinner
   {
     if (mItemCount > 0 && mSelectedPosition >= 0)
     {
-      return getChildAt(mSelectedPosition - mFirstPosition);
+      return getChildAt(mSelectedPosition - firstPosition);
     }
     else
     {
@@ -144,7 +144,7 @@ public abstract class CarouselSpinner
   public void setSelection(int position, boolean animate)
   {
     // Animate only if requested position is already on screen somewhere
-    //boolean shouldAnimate = animate && mFirstPosition <= position && position <= mFirstPosition + getChildCount() - 1;
+    //boolean shouldAnimate = animate && firstPosition <= position && position <= firstPosition + getChildCount() - 1;
     setSelectionInt(position, animate);
   }
 
@@ -297,7 +297,7 @@ public abstract class CarouselSpinner
   {
     final int childCount = getChildCount();
     final CarouselSpinner.RecycleBin recycleBin = mRecycler;
-    final int position = mFirstPosition;
+    final int position = firstPosition;
 
     // All views go in recycler
     for (int i = 0; i < childCount; i++)
