@@ -82,31 +82,31 @@ public abstract class CarouselSpinner
 
   }
 
-  private class RecycleBin
+  protected class RecycleBin
   {
 
-    private final SparseArray<View> mScrapHeap = new SparseArray<>();
+    private final SparseArray<View> scrapHeap = new SparseArray<>();
 
     public void put(int position, View v)
     {
-      mScrapHeap.put(position, v);
+      scrapHeap.put(position, v);
     }
 
-    private View get(int position)
+    public View get(int position)
     {
-      final View result = mScrapHeap.get(position);
+      final View result = scrapHeap.get(position);
 
       if (result != null)
       {
-        mScrapHeap.delete(position);
+        scrapHeap.delete(position);
       }
 
       return result;
     }
 
-    private void clear()
+    public void clear()
     {
-      final SparseArray<View> scrapHeap = mScrapHeap;
+      final SparseArray<View> scrapHeap = this.scrapHeap;
       final int count = scrapHeap.size();
 
       for (int i = 0; i < count; i++)
@@ -124,7 +124,7 @@ public abstract class CarouselSpinner
 
   }
 
-  private SpinnerAdapter adapter;
+  protected SpinnerAdapter adapter;
 
   private int heightMeasureSpec;
 
@@ -142,9 +142,9 @@ public abstract class CarouselSpinner
 
   private DataSetObserver dataSetObserver;
 
-  private final Rect spinnerPadding = new Rect();
+  protected final Rect spinnerPadding = new Rect();
 
-  private final RecycleBin recycler = new RecycleBin();
+  protected final RecycleBin recycler = new RecycleBin();
 
   public CarouselSpinner(Context context)
   {
@@ -227,7 +227,7 @@ public abstract class CarouselSpinner
     return child.getMeasuredWidth();
   }
 
-  private void recycleAllViews()
+  protected void recycleAllViews()
   {
     final int childCount = getChildCount();
     final CarouselSpinner.RecycleBin recycleBin = recycler;

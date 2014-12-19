@@ -283,7 +283,7 @@ public abstract class CarouselAdapter<T extends Adapter>
   /**
    * Indicates that this view is currently being laid out.
    */
-  private boolean isInLayout = false;
+  protected boolean isInLayout = false;
 
   /**
    * The listener that receives notifications when an item is selected.
@@ -298,7 +298,7 @@ public abstract class CarouselAdapter<T extends Adapter>
   /**
    * The listener that receives notifications when an item is long clicked.
    */
-  private OnItemLongClickListener onItemLongClickListener;
+  protected OnItemLongClickListener onItemLongClickListener;
 
   /**
    * True if the data has changed since the last layout
@@ -308,7 +308,7 @@ public abstract class CarouselAdapter<T extends Adapter>
   /**
    * The position within the adapter's data set of the item to select during the next layout.
    */
-  private int nextSelectedPosition = INVALID_POSITION;
+  protected int nextSelectedPosition = INVALID_POSITION;
 
   /**
    * The item id of the item to select during the next layout.
@@ -323,7 +323,7 @@ public abstract class CarouselAdapter<T extends Adapter>
   /**
    * The item id of the currently selected item.
    */
-  private long selectedRowId = INVALID_ROW_ID;
+  protected long selectedRowId = INVALID_ROW_ID;
 
   /**
    * View to show if there are no items to show.
@@ -669,7 +669,7 @@ public abstract class CarouselAdapter<T extends Adapter>
     return (adapter == null || position < 0) ? null : adapter.getItem(position);
   }
 
-  private void selectionChanged()
+  protected void selectionChanged()
   {
     if (onItemSelectedListener != null)
     {
@@ -1093,6 +1093,99 @@ public abstract class CarouselAdapter<T extends Adapter>
   protected boolean canAnimate()
   {
     return super.canAnimate() == true && itemCount > 0;
+  }
+
+  /**
+   * This method is not supported and throws an UnsupportedOperationException when called.
+   *
+   * @param child Ignored.
+   * @throws UnsupportedOperationException Every time this method is invoked.
+   */
+  @Override
+  public void addView(View child)
+  {
+    throw new UnsupportedOperationException("addView(View) is not supported in CarouselAdapter");
+  }
+
+  /**
+   * This method is not supported and throws an UnsupportedOperationException when called.
+   *
+   * @param child Ignored.
+   * @param index Ignored.
+   * @throws UnsupportedOperationException Every time this method is invoked.
+   */
+  @Override
+  public void addView(View child, int index)
+  {
+    throw new UnsupportedOperationException("addView(View, int) is not supported in CarouselAdapter");
+  }
+
+  /**
+   * This method is not supported and throws an UnsupportedOperationException when called.
+   *
+   * @param child  Ignored.
+   * @param params Ignored.
+   * @throws UnsupportedOperationException Every time this method is invoked.
+   */
+  @Override
+  public void addView(View child, LayoutParams params)
+  {
+    throw new UnsupportedOperationException("addView(View, LayoutParams) " + "is not supported in CarouselAdapter");
+  }
+
+  /**
+   * This method is not supported and throws an UnsupportedOperationException when called.
+   *
+   * @param child  Ignored.
+   * @param index  Ignored.
+   * @param params Ignored.
+   * @throws UnsupportedOperationException Every time this method is invoked.
+   */
+  @Override
+  public void addView(View child, int index, LayoutParams params)
+  {
+    throw new UnsupportedOperationException("addView(View, int, LayoutParams) " + "is not supported in CarouselAdapter");
+  }
+
+  /**
+   * This method is not supported and throws an UnsupportedOperationException when called.
+   *
+   * @param child Ignored.
+   * @throws UnsupportedOperationException Every time this method is invoked.
+   */
+  @Override
+  public void removeView(View child)
+  {
+    throw new UnsupportedOperationException("removeView(View) is not supported in CarouselAdapter");
+  }
+
+  /**
+   * This method is not supported and throws an UnsupportedOperationException when called.
+   *
+   * @param index Ignored.
+   * @throws UnsupportedOperationException Every time this method is invoked.
+   */
+  @Override
+  public void removeViewAt(int index)
+  {
+    throw new UnsupportedOperationException("removeViewAt(int) is not supported in CarouselAdapter");
+  }
+
+  /**
+   * This method is not supported and throws an UnsupportedOperationException when called.
+   *
+   * @throws UnsupportedOperationException Every time this method is invoked.
+   */
+  @Override
+  public void removeAllViews()
+  {
+    throw new UnsupportedOperationException("removeAllViews() is not supported in CarouselAdapter");
+  }
+
+  @Override
+  protected void onLayout(boolean changed, int left, int top, int right, int bottom)
+  {
+    layoutHeight = getHeight();
   }
 
   /**

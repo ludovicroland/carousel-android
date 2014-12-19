@@ -24,54 +24,237 @@ import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
 
+/**
+ * @author Igor Kushnarev, Ludovic Roland
+ * @since 2014.12.19
+ */
+//Inspired by http://www.codeproject.com/Articles/146145/Android-D-Carousel?fid=1605167&df=90&mpp=25&sort=Position&spc=Relaxed&tid=4918792
+
 public final class Carousel
     extends CarouselSpinner
     implements GestureDetector.OnGestureListener
 {
 
-  // Static private members
+  private class FlingRotateRunnable
+      implements Runnable
+  {
+
+    /**
+     * Tracks the decay of a fling rotation
+     */
+    private final Rotator rotator;
+
+    /**
+     * Angle value reported by rotator on the previous fling
+     */
+    private float lastFlingAngle;
+
+    /**
+     * Constructor
+     */
+    public FlingRotateRunnable()
+    {
+      rotator = new Rotator(getContext());
+    }
+
+    private void startCommon()
+    {
+      // Remove any pending flings
+      removeCallbacks(this);
+    }
+
+    public void startUsingVelocity(float initialVelocity)
+    {
+      if (initialVelocity == 0)
+      {
+        return;
+      }
+
+      startCommon();
+      lastFlingAngle = 0.0f;
+      rotator.fling(initialVelocity);
+      post(this);
+    }
+
+    public void startUsingDistance(float deltaAngle)
+    {
+      if (deltaAngle == 0)
+      {
+        return;
+      }
+
+      startCommon();
+
+      lastFlingAngle = 0;
+
+      synchronized (this)
+      {
+        rotator.startRotate(0.0f, -deltaAngle, animationDuration);
+      }
+
+      post(this);
+    }
+
+    public void stop(boolean scrollIntoSlots)
+    {
+      removeCallbacks(this);
+      endFling(scrollIntoSlots);
+    }
+
+    private void endFling(boolean scrollIntoSlots)
+    {
+      /*
+       * Force the scroller's status to finished (without setting its position to the end)
+       */
+      synchronized (this)
+      {
+        rotator.forceFinished(true);
+      }
+
+      if (scrollIntoSlots)
+      {
+        scrollIntoSlots();
+      }
+    }
+
+    @Override
+    public void run()
+    {
+      if (Carousel.this.getChildCount() == 0)
+      {
+        endFling(true);
+        return;
+      }
+
+      shouldStopFling = false;
+
+      final Rotator rotator;
+      final float angle;
+      boolean more;
+
+      synchronized (this)
+      {
+        rotator = this.rotator;
+        more = rotator.computeAngleOffset();
+        angle = rotator.getCurrAngle();
+      }
+
+      // Flip sign to convert finger direction to list items direction
+      // (e.g. finger moving down means list is moving towards the top)
+      final float delta = lastFlingAngle - angle;
+
+      // ////// Shoud be reworked
+      trackMotionScroll(delta);
+
+      if (more && !shouldStopFling)
+      {
+        lastFlingAngle = angle;
+        post(this);
+      }
+      else
+      {
+        lastFlingAngle = 0.0f;
+        endFling(true);
+      }
+
+    }
+
+  }
 
   /**
-   * Tag for a class logging
+   * Adapter class for the Carousel
+   *
+   * @param <T1> represents the BO
+   * @param <T2> represents a class that extends CarouselItem
    */
-  private static final String TAG = Carousel.class.getSimpleName();
+  public static abstract class ItemCarouselAdapter<T1, T2>
+      extends BaseAdapter
+  {
 
-  /**
-   * If logging should be inside class
-   */
-  private static final boolean localLOGV = false;
+    private final Context context;
+
+    private final List<CarouselItem<T1, T2>> items = new ArrayList<>();
+
+    public ItemCarouselAdapter(Context c, List<T1> l, List<T2> l2)
+    {
+      context = c;
+
+      for (int i = 0; i < l.size(); i++)
+      {
+        final CarouselItem<T1, T2> item = getCarouselItem(context);
+        item.setIndex(i);
+        item.update(l.get(i), l2.get(i));
+        items.add(item);
+      }
+    }
+
+    @Override
+    public int getCount()
+    {
+      if (items == null)
+      {
+        return 0;
+      }
+
+      return items.size();
+    }
+
+    @Override
+    public Object getItem(int position)
+    {
+      return position;
+    }
+
+    @Override
+    public long getItemId(int position)
+    {
+      return position;
+    }
+
+    @Override
+    public View getView(int position, View convertView, ViewGroup parent)
+    {
+      return items.get(position);
+    }
+
+    public abstract CarouselItem<T1, T2> getCarouselItem(Context context);
+
+  }
 
   /**
    * Duration in milliseconds from the start of a scroll during which we're unsure whether the user is scrolling or flinging.
    */
   private static final int SCROLL_TO_FLING_UNCERTAINTY_TIMEOUT = 250;
 
-  // Private members
+  /**
+   * The axe angle
+   */
+  private static final float THETA = (float) (15.0f * (Math.PI / 180.0));
 
   /**
    * The info for adapter context menu
    */
-  private AdapterContextMenuInfo mContextMenuInfo;
+  private AdapterContextMenuInfo contextMenuInfo;
 
   /**
    * How long the transition animation should run when a child view changes position, measured in milliseconds.
    */
-  private int mAnimationDuration = 900;
+  private int animationDuration = 900;
 
   /**
    * Camera to make 3D rotation
    */
-  private final Camera mCamera = new Camera();
+  private final Camera camera = new Camera();
 
   /**
-   * Sets mSuppressSelectionChanged = false. This is used to set it to false in the future. It will also trigger a selection changed.
+   * Sets suppressSelectionChanged = false. This is used to set it to false in the future. It will also trigger a selection changed.
    */
-  private final Runnable mDisableSuppressSelectionChangedRunnable = new Runnable()
+  private final Runnable disableSuppressSelectionChangedRunnable = new Runnable()
   {
     @Override
     public void run()
     {
-      mSuppressSelectionChanged = false;
+      suppressSelectionChanged = false;
       selectionChanged();
     }
   };
@@ -79,71 +262,65 @@ public final class Carousel
   /**
    * The position of the item that received the user's down touch.
    */
-  private int mDownTouchPosition;
+  private int downTouchPosition;
 
   /**
    * The view of the item that received the user's down touch.
    */
-  private View mDownTouchView;
+  private View downTouchView;
 
   /**
    * Executes the delta rotations from a fling or scroll movement.
    */
-  private final FlingRotateRunnable mFlingRunnable = new FlingRotateRunnable();
+  private final FlingRotateRunnable flingRunnable = new FlingRotateRunnable();
 
   /**
    * Helper for detecting touch gestures.
    */
-  private final GestureDetector mGestureDetector;
+  private final GestureDetector gestureDetector;
 
   /**
    * Gravity for the widget
    */
-  private int mGravity;
+  private int gravity;
 
   /**
    * If true, this onScroll is the first for this user's drag (remember, a drag sends many onScrolls).
    */
-  private boolean mIsFirstScroll;
+  private boolean isFirstScroll;
 
   /**
    * If true, we have received the "invoke" (center or enter buttons) key down. This is checked before we action on the "invoke" key up, and is
    * subsequently cleared.
    */
-  private boolean mReceivedInvokeKeyDown;
+  private boolean receivedInvokeKeyDown;
 
   /**
    * The currently selected item's child.
    */
-  private View mSelectedChild;
+  private View selectedChild;
 
   /**
    * Whether to continuously callback on the item selected listener during a fling.
    */
-  private boolean mShouldCallbackDuringFling = true;
+  private boolean shouldCallbackDuringFling = true;
 
   /**
    * Whether to callback when an item that is not selected is clicked.
    */
-  private boolean mShouldCallbackOnUnselectedItemClick = true;
+  private boolean shouldCallbackOnUnselectedItemClick = true;
 
   /**
    * When fling runnable runs, it resets this to false. Any method along the path until the end of its run() can set this to true to abort any
    * remaining fling. For example, if we've reached either the leftmost or rightmost item, we will set this to true.
    */
-  private boolean mShouldStopFling;
+  private boolean shouldStopFling;
 
   /**
    * If true, do not callback to item selected listener.
    */
-  private boolean mSuppressSelectionChanged;
+  private boolean suppressSelectionChanged;
 
-  /**
-   * The axe angle
-   */
-  private final float mTheta = (float) (15.0f * (Math.PI / 180.0));
-
-  // Constructors
   public Carousel(Context context)
   {
     this(context, null);
@@ -156,7 +333,6 @@ public final class Carousel
 
   public Carousel(Context context, AttributeSet attrs, int defStyle)
   {
-
     super(context, attrs, defStyle);
 
     // It's needed to make items with greater value of
@@ -164,8 +340,8 @@ public final class Carousel
     setChildrenDrawingOrderEnabled(true);
 
     // Making user gestures available
-    mGestureDetector = new GestureDetector(this.getContext(), this);
-    mGestureDetector.setIsLongpressEnabled(true);
+    gestureDetector = new GestureDetector(this.getContext(), this);
+    gestureDetector.setIsLongpressEnabled(true);
 
     // It's needed to apply 3D transforms to items
     // before they are drawn
@@ -173,26 +349,643 @@ public final class Carousel
 
     // Retrieve settings
     TypedArray arr = getContext().obtainStyledAttributes(attrs, R.styleable.Carousel);
-    mAnimationDuration = arr.getInteger(R.styleable.Carousel_android_animationDuration, 400);
-
-    // Initialize image adapter
-    // ImageAdapter adapter = new ImageAdapter(getContext());
-    // adapter.SetImages(images, null, mUseReflection);
-    //
-    // setAdapter(adapter);
-
-    // if (selectedItem < 0 || selectedItem >= adapter.getCount())
-    // selectedItem = 0;
-
-    // next time we go through layout with this value
-    // setNextSelectedPositionInt(0);
+    animationDuration = arr.getInteger(R.styleable.Carousel_android_animationDuration, 400);
 
     arr.recycle();
   }
 
-  // View overrides
+  private void Calculate3DPosition(CarouselItem<?, ?> child, int diameter, float angleOffset)
+  {
+    angleOffset = angleOffset * (float) (Math.PI / 180.0f);
 
-  // These are for use with horizontal scrollbar
+    final float x = -(diameter / 2 * android.util.FloatMath.sin(angleOffset)) + diameter / 2 - child.getWidth() / 2;
+    final float z = diameter / 2 * (1.0f - android.util.FloatMath.cos(angleOffset));
+    final float y = -getHeight() / 2 + z * android.util.FloatMath.sin(THETA);
+
+    child.setItemX(x);
+    child.setItemZ(z);
+    child.setItemY(y);
+  }
+
+  /**
+   * Figure out vertical placement based on gravity
+   *
+   * @param child Child to place
+   * @return Where the top of the child should be
+   */
+  private int calculateTop(View child, boolean duringLayout)
+  {
+    final int myHeight = duringLayout ? getMeasuredHeight() : getHeight();
+    final int childHeight = duringLayout ? child.getMeasuredHeight() : child.getHeight();
+    int childTop = 0;
+
+    switch (gravity)
+    {
+    case Gravity.TOP:
+      childTop = spinnerPadding.top;
+      break;
+
+    case Gravity.CENTER_VERTICAL:
+      int availableSpace = myHeight - spinnerPadding.bottom - spinnerPadding.top - childHeight;
+      childTop = spinnerPadding.top + (availableSpace / 2);
+      break;
+
+    case Gravity.BOTTOM:
+      childTop = myHeight - spinnerPadding.bottom - childHeight;
+      break;
+    }
+
+    return childTop;
+  }
+
+  private boolean dispatchLongPress(View view, int position, long id)
+  {
+    boolean handled = false;
+
+    if (onItemLongClickListener != null)
+    {
+      handled = onItemLongClickListener.onItemLongClick(this, downTouchView, downTouchPosition, id);
+    }
+
+    if (handled == false)
+    {
+      contextMenuInfo = new AdapterContextMenuInfo(view, position, id);
+      handled = super.showContextMenuForChild(this);
+    }
+
+    if (handled == true)
+    {
+      performHapticFeedback(HapticFeedbackConstants.LONG_PRESS);
+    }
+
+    return handled;
+  }
+
+  private void dispatchPress(View child)
+  {
+    if (child != null)
+    {
+      child.setPressed(true);
+    }
+
+    setPressed(true);
+  }
+
+  private void dispatchUnpress()
+  {
+    for (int i = getChildCount() - 1; i >= 0; i--)
+    {
+      getChildAt(i).setPressed(false);
+    }
+
+    setPressed(false);
+  }
+
+  /**
+   * @return The center of this Gallery.
+   */
+  private int getCenterOfGallery()
+  {
+    return (getWidth() - Carousel.this.getPaddingLeft() - Carousel.this.getPaddingRight()) / 2 + Carousel.this.getPaddingLeft();
+  }
+
+  /**
+   * @return The center of the given view.
+   */
+  private static int getCenterOfView(View view)
+  {
+    return view.getLeft() + view.getWidth() / 2;
+  }
+
+  private float getLimitedMotionScrollAmount(boolean motionToLeft, float deltaX)
+  {
+    final int extremeItemPosition = motionToLeft == true ? Carousel.this.getCount() - 1 : 0;
+    final View extremeChild = getChildAt(extremeItemPosition - Carousel.this.getFirstVisiblePosition());
+
+    if (extremeChild == null)
+    {
+      return deltaX;
+    }
+
+    final int extremeChildCenter = getCenterOfView(extremeChild);
+    final int galleryCenter = getCenterOfGallery();
+
+    if (motionToLeft == true)
+    {
+      if (extremeChildCenter <= galleryCenter)
+      {
+        // The extreme child is past his boundary point!
+        return 0;
+      }
+    }
+    else
+    {
+      if (extremeChildCenter >= galleryCenter)
+      {
+        // The extreme child is past his boundary point!
+        return 0;
+      }
+    }
+
+    final int centerDifference = galleryCenter - extremeChildCenter;
+    return motionToLeft == true ? Math.max(centerDifference, deltaX) : Math.min(centerDifference, deltaX);
+  }
+
+  private int getLimitedMotionScrollAmount(boolean motionToLeft, int deltaX)
+  {
+    final int extremeItemPosition = motionToLeft == true ? itemCount - 1 : 0;
+    final View extremeChild = getChildAt(extremeItemPosition - firstPosition);
+
+    if (extremeChild == null)
+    {
+      return deltaX;
+    }
+
+    final int extremeChildCenter = getCenterOfView(extremeChild);
+    final int galleryCenter = getCenterOfGallery();
+
+    if (motionToLeft == true)
+    {
+      if (extremeChildCenter <= galleryCenter)
+      {
+        // The extreme child is past his boundary point!
+        return 0;
+      }
+    }
+    else
+    {
+      if (extremeChildCenter >= galleryCenter)
+      {
+        // The extreme child is past his boundary point!
+        return 0;
+      }
+    }
+
+    final int centerDifference = galleryCenter - extremeChildCenter;
+    return motionToLeft == true ? Math.max(centerDifference, deltaX) : Math.min(centerDifference, deltaX);
+  }
+
+  private void makeAndAddView(int position, float angleOffset)
+  {
+    CarouselItem<?, ?> child;
+
+    if (dataChanged == false)
+    {
+      child = (CarouselItem<?, ?>) recycler.get(position);
+
+      if (child != null)
+      {
+        // Position the view
+        setUpChild(child, child.getIndex(), angleOffset);
+      }
+      else
+      {
+        // Nothing found in the recycler -- ask the adapter for a view
+        child = (CarouselItem<?, ?>) adapter.getView(position, null, this);
+
+        // Position the view
+        setUpChild(child, child.getIndex(), angleOffset);
+      }
+
+      return;
+    }
+
+    // Nothing found in the recycler -- ask the adapter for a view
+    child = (CarouselItem<?, ?>) adapter.getView(position, null, this);
+
+    // Position the view
+    setUpChild(child, child.getIndex(), angleOffset);
+  }
+
+  private void onCancel()
+  {
+    onUp();
+  }
+
+  /**
+   * Called when rotation is finished
+   */
+  private void onFinishedMovement()
+  {
+    if (suppressSelectionChanged == true)
+    {
+      suppressSelectionChanged = false;
+
+      // We haven't been callbacking during the fling, so do it now
+      super.selectionChanged();
+    }
+
+    checkSelectionChanged();
+    invalidate();
+  }
+
+  private void onUp()
+  {
+    if (flingRunnable.rotator.isFinished() == true)
+    {
+      scrollIntoSlots();
+    }
+
+    dispatchUnpress();
+  }
+
+  /**
+   * Brings an item with nearest to 0 degrees angle to this angle and sets it selected
+   */
+  private void scrollIntoSlots()
+  {
+    // Nothing to do
+    if (getChildCount() == 0 || selectedChild == null)
+    {
+      return;
+    }
+
+    // get nearest item to the 0 degrees angle
+    // Sort itmes and get nearest angle
+    float angle;
+    int position;
+
+    ArrayList<CarouselItem<?, ?>> arr = new ArrayList<>();
+
+    for (int i = 0; i < getAdapter().getCount(); i++)
+    {
+      arr.add(((CarouselItem<?, ?>) getAdapter().getView(i, null, null)));
+    }
+
+    Collections.sort(arr, new Comparator<CarouselItem<?, ?>>()
+    {
+
+      @Override
+      public int compare(CarouselItem<?, ?> c1, CarouselItem<?, ?> c2)
+      {
+        int a1 = (int) c1.getCurrentAngle();
+
+        if (a1 > 180)
+        {
+          a1 = 360 - a1;
+        }
+
+        int a2 = (int) c2.getCurrentAngle();
+
+        if (a2 > 180)
+        {
+          a2 = 360 - a2;
+        }
+
+        return (a1 - a2);
+      }
+
+    });
+
+    angle = arr.get(0).getCurrentAngle();
+
+    // Make it minimum to rotate
+    if (angle > 180.0f)
+    {
+      angle = -(360.0f - angle);
+    }
+
+    // Start rotation if needed
+    if (angle != 0.0f)
+    {
+      flingRunnable.startUsingDistance(-angle);
+    }
+    else
+    {
+      // Set selected position
+      position = arr.get(0).getIndex();
+      setSelectedPositionInt(position);
+      onFinishedMovement();
+    }
+  }
+
+  public void scrollToChild(int i)
+  {
+
+    final CarouselItem<?, ?> view = (CarouselItem<?, ?>) getAdapter().getView(i, null, null);
+    float angle = view.getCurrentAngle();
+
+    if (angle == 0)
+    {
+      return;
+    }
+
+    if (angle > 180.0f)
+    {
+      angle = 360.0f - angle;
+    }
+    else
+    {
+      angle = -angle;
+    }
+
+    flingRunnable.startUsingDistance(angle);
+  }
+
+  /**
+   * Whether or not to callback on any {@link #getOnItemSelectedListener()} while the items are being flinged. If false, only the final selected item
+   * will cause the callback. If true, all items between the first and the final will cause callbacks.
+   *
+   * @param shouldCallback Whether or not to callback on the listener while the items are being flinged.
+   */
+  public void setCallbackDuringFling(boolean shouldCallback)
+  {
+    shouldCallbackDuringFling = shouldCallback;
+  }
+
+  /**
+   * Whether or not to callback when an item that is not selected is clicked. If false, the item will become selected (and re-centered). If true, the
+   * {@link #getOnItemClickListener()} will get the callback.
+   *
+   * @param shouldCallback Whether or not to callback on the listener when a item that is not selected is clicked.
+   * @hide
+   */
+  public void setCallbackOnUnselectedItemClick(boolean shouldCallback)
+  {
+    shouldCallbackOnUnselectedItemClick = shouldCallback;
+  }
+
+  /**
+   * Sets how long the transition animation should run when a child view changes position. Only relevant if animation is turned on.
+   *
+   * @param animationDurationMillis The duration of the transition, in milliseconds.
+   * @attr ref android.R.styleable#Gallery_animationDuration
+   */
+  public void setAnimationDuration(int animationDurationMillis)
+  {
+    animationDuration = animationDurationMillis;
+  }
+
+  public void setGravity(int gravity)
+  {
+    if (this.gravity != gravity)
+    {
+      this.gravity = gravity;
+      requestLayout();
+    }
+  }
+
+  private void setUpChild(CarouselItem<?, ?> child, int index, float angleOffset)
+  {
+    // Ignore any layout parameters for child, use wrap content
+    addViewInLayout(child, -1 /* index */, generateDefaultLayoutParams());
+    child.setSelected(index == selectedPosition);
+
+    int h;
+    int w;
+    int d;
+
+    if (isInLayout == true)
+    {
+      w = child.getMeasuredWidth();
+      h = child.getMeasuredHeight();
+      d = getMeasuredWidth();
+
+    }
+    else
+    {
+      w = child.getMeasuredWidth();
+      h = child.getMeasuredHeight();
+      d = getWidth();
+    }
+
+    child.setCurrentAngle(angleOffset);
+
+    // Measure child
+    child.measure(w, h);
+
+    int childLeft;
+
+    // Position vertically based on gravity setting
+    int childTop = calculateTop(child, true);
+
+    childLeft = 0;
+
+    child.layout(childLeft, childTop, w, h);
+
+    Calculate3DPosition(child, d, angleOffset);
+  }
+
+  /**
+   * Tracks a motion scroll. In reality, this is used to do just about any movement to items (touch scroll, arrow-key scroll, set an item as
+   * selected).
+   *
+   * @param deltaAngle Change in X from the previous event.
+   */
+  public void trackMotionScroll(float deltaAngle)
+  {
+    if (getChildCount() == 0)
+    {
+      return;
+    }
+
+    for (int i = 0; i < getAdapter().getCount(); i++)
+    {
+      CarouselItem<?, ?> child = (CarouselItem<?, ?>) getAdapter().getView(i, null, null);
+      float angle = child.getCurrentAngle();
+      angle += deltaAngle;
+
+      while (angle > 360.0f)
+      {
+        angle -= 360.0f;
+      }
+
+      while (angle < 0.0f)
+      {
+        angle += 360.0f;
+      }
+
+      child.setCurrentAngle(angle);
+      Calculate3DPosition(child, getWidth(), angle);
+    }
+
+    // Clear unused views
+    recycler.clear();
+    invalidate();
+  }
+
+  private void updateSelectedItemMetadata()
+  {
+    final View oldSelectedChild = selectedChild;
+    final View child = selectedChild = getChildAt(selectedPosition - firstPosition);
+
+    if (child == null)
+    {
+      return;
+    }
+
+    child.setSelected(true);
+    child.setFocusable(true);
+
+    if (hasFocus() == true)
+    {
+      child.requestFocus();
+    }
+
+    // We unfocus the old child down here so the above hasFocus check
+    // returns true
+    if (oldSelectedChild != null)
+    {
+      // Make sure its drawable state doesn't contain 'selected'
+      oldSelectedChild.setSelected(false);
+
+      // Make sure it is not focusable anymore, since otherwise arrow keys
+      // can make this one be focused
+      oldSelectedChild.setFocusable(false);
+    }
+  }
+
+  @Override
+  public boolean onDown(MotionEvent e)
+  {
+    // Kill any existing fling/scroll
+    flingRunnable.stop(false);
+
+    // /// Don't know yet what for it is
+    // Get the item's view that was touched
+    downTouchPosition = pointToPosition((int) e.getX(), (int) e.getY());
+
+    if (downTouchPosition >= 0)
+    {
+      downTouchView = getChildAt(downTouchPosition - firstPosition);
+      downTouchView.setPressed(true);
+    }
+
+    // Reset the multiple-scroll tracking state
+    isFirstScroll = true;
+
+    // Must return true to get matching events for this down event.
+    return true;
+  }
+
+  @Override
+  public boolean onFling(MotionEvent e1, MotionEvent e2, float velocityX, float velocityY)
+  {
+    if (shouldCallbackDuringFling == false)
+    {
+      // We want to suppress selection changes
+
+      // Remove any future code to set suppressSelectionChanged = false
+      removeCallbacks(disableSuppressSelectionChangedRunnable);
+
+      // This will get reset once we scroll into slots
+      if (suppressSelectionChanged == false)
+      {
+        suppressSelectionChanged = true;
+      }
+    }
+
+    // Fling the gallery!
+    final int currentSelection = getSelectedItemPosition();
+    final int nextSelection;
+
+    if (velocityX > 0)
+    {
+      nextSelection = currentSelection == getChildCount() - 1 ? 0 : currentSelection + 1;
+    }
+    else
+    {
+      nextSelection = currentSelection == 0 ? getChildCount() - 1 : currentSelection - 1;
+    }
+
+    final CarouselItem<?, ?> view = (CarouselItem<?, ?>) getAdapter().getView(nextSelection, null, null);
+    float angle = view.getCurrentAngle();
+
+    if (angle == 0)
+    {
+      return false;
+    }
+
+    if (angle > 180.0f)
+    {
+      angle = 360.0f - angle;
+    }
+    else
+    {
+      angle = -angle;
+    }
+
+    flingRunnable.startUsingDistance(angle);
+
+    return true;
+  }
+
+  @Override
+  public void onLongPress(MotionEvent e)
+  {
+    if (downTouchPosition < 0)
+    {
+      return;
+    }
+
+    performHapticFeedback(HapticFeedbackConstants.LONG_PRESS);
+    final long id = getItemIdAtPosition(downTouchPosition);
+    dispatchLongPress(downTouchView, downTouchPosition, id);
+  }
+
+  @Override
+  public boolean onScroll(MotionEvent e1, MotionEvent e2, float distanceX, float distanceY)
+  {
+    /*
+     * Now's a good time to tell our parent to stop intercepting our events! The user has moved more than the slop amount, since GestureDetector
+     * ensures this before calling this method. Also, if a parent is more interested in this touch's events than we are, it would have intercepted
+     * them by now (for example, we can assume when a Gallery is in the ListView, a vertical scroll would not end up in this method since a ListView
+     * would have intercepted it by now).
+     */
+    getParent().requestDisallowInterceptTouchEvent(true);
+
+    // As the user scrolls, we want to callback selection changes so related-
+    // info on the screen is up-to-date with the gallery's selection
+    if (shouldCallbackDuringFling == false)
+    {
+      if (isFirstScroll == true)
+      {
+        /*
+         * We're not notifying the client of selection changes during the fling, and this scroll could possibly be a fling. Don't do selection changes
+         * until we're sure it is not a fling.
+         */
+        if (suppressSelectionChanged == false)
+        {
+          suppressSelectionChanged = true;
+        }
+
+        postDelayed(disableSuppressSelectionChangedRunnable, SCROLL_TO_FLING_UNCERTAINTY_TIMEOUT);
+      }
+    }
+    else
+    {
+      if (suppressSelectionChanged == true)
+      {
+        suppressSelectionChanged = false;
+      }
+    }
+
+    isFirstScroll = false;
+    return true;
+  }
+
+  @Override
+  public boolean onSingleTapUp(MotionEvent e)
+  {
+    if (downTouchPosition >= 0)
+    {
+      // Pass the click so the client knows, if it wants to.
+      if (shouldCallbackOnUnselectedItemClick == true || downTouchPosition == selectedPosition)
+      {
+        performItemClick(downTouchView, downTouchPosition, adapter.getItemId(downTouchPosition));
+      }
+
+      return true;
+    }
+
+    return false;
+  }
+
+  // /// Unused gestures
+  @Override
+  public void onShowPress(MotionEvent e)
+  {
+  }
 
   /**
    * Compute the horizontal extent of the horizontal scrollbar's thumb within the horizontal range. This value is used to compute the length of the
@@ -213,7 +1006,7 @@ public final class Carousel
   protected int computeHorizontalScrollOffset()
   {
     // Current scroll position is the same as the selected position
-    return mSelectedPosition;
+    return selectedPosition;
   }
 
   /**
@@ -223,7 +1016,7 @@ public final class Carousel
   protected int computeHorizontalScrollRange()
   {
     // Scroll range is the same as the item count
-    return mItemCount;
+    return itemCount;
   }
 
   /**
@@ -232,11 +1025,10 @@ public final class Carousel
   @Override
   public boolean onTouchEvent(MotionEvent event)
   {
-
     // Give everything to the gesture detector
-    boolean retValue = mGestureDetector.onTouchEvent(event);
+    final boolean retValue = gestureDetector.onTouchEvent(event);
+    final int action = event.getAction();
 
-    int action = event.getAction();
     if (action == MotionEvent.ACTION_UP)
     {
       // Helper method for lifted finger
@@ -256,7 +1048,7 @@ public final class Carousel
   @Override
   protected ContextMenuInfo getContextMenuInfo()
   {
-    return mContextMenuInfo;
+    return contextMenuInfo;
   }
 
   /**
@@ -265,12 +1057,12 @@ public final class Carousel
   @Override
   public boolean showContextMenu()
   {
-
-    if (isPressed() && mSelectedPosition >= 0)
+    if (isPressed() == true && selectedPosition >= 0)
     {
-      int index = mSelectedPosition - firstPosition;
-      View v = getChildAt(index);
-      return dispatchLongPress(v, mSelectedPosition, mSelectedRowId);
+      final int index = selectedPosition - firstPosition;
+      final View v = getChildAt(index);
+
+      return dispatchLongPress(v, selectedPosition, selectedRowId);
     }
 
     return false;
@@ -286,22 +1078,17 @@ public final class Carousel
   {
     switch (keyCode)
     {
-
     case KeyEvent.KEYCODE_DPAD_LEFT:
-      // //if (movePrevious()) {
       playSoundEffect(SoundEffectConstants.NAVIGATION_LEFT);
-      // //}
       return true;
 
     case KeyEvent.KEYCODE_DPAD_RIGHT:
-      // ///if (moveNext()) {
       playSoundEffect(SoundEffectConstants.NAVIGATION_RIGHT);
-      // //}
       return true;
 
     case KeyEvent.KEYCODE_DPAD_CENTER:
     case KeyEvent.KEYCODE_ENTER:
-      mReceivedInvokeKeyDown = true;
+      receivedInvokeKeyDown = true;
       // fallthrough to default handling
     }
 
@@ -316,13 +1103,11 @@ public final class Carousel
     case KeyEvent.KEYCODE_DPAD_CENTER:
     case KeyEvent.KEYCODE_ENTER:
     {
-
-      if (mReceivedInvokeKeyDown)
+      if (receivedInvokeKeyDown == true)
       {
-        if (mItemCount > 0)
+        if (itemCount > 0)
         {
-
-          dispatchPress(mSelectedChild);
+          dispatchPress(selectedChild);
           postDelayed(new Runnable()
           {
             @Override
@@ -332,13 +1117,13 @@ public final class Carousel
             }
           }, ViewConfiguration.getPressedStateDuration());
 
-          int selectedIndex = mSelectedPosition - firstPosition;
-          performItemClick(getChildAt(selectedIndex), mSelectedPosition, mAdapter.getItemId(mSelectedPosition));
+          final int selectedIndex = selectedPosition - firstPosition;
+          performItemClick(getChildAt(selectedIndex), selectedPosition, adapter.getItemId(selectedPosition));
         }
       }
 
       // Clear the flag
-      mReceivedInvokeKeyDown = false;
+      receivedInvokeKeyDown = false;
 
       return true;
     }
@@ -356,14 +1141,11 @@ public final class Carousel
      * The gallery shows focus by focusing the selected item. So, give focus to our selected item instead. We steal keys from our selected item
      * elsewhere.
      */
-    if (gainFocus && mSelectedChild != null)
+    if (gainFocus == true && selectedChild != null)
     {
-      mSelectedChild.requestFocus(direction);
+      selectedChild.requestFocus(direction);
     }
-
   }
-
-  // ViewGroup overrides
 
   @Override
   protected boolean checkLayoutParams(ViewGroup.LayoutParams p)
@@ -395,25 +1177,25 @@ public final class Carousel
   @Override
   protected void dispatchSetPressed(boolean pressed)
   {
-
     // Show the pressed state on the selected child
-    if (mSelectedChild != null)
+    if (selectedChild != null)
     {
-      mSelectedChild.setPressed(pressed);
+      selectedChild.setPressed(pressed);
     }
   }
 
   @Override
   public boolean showContextMenuForChild(View originalView)
   {
-
     final int longPressPosition = getPositionForView(originalView);
+
     if (longPressPosition < 0)
     {
       return false;
     }
 
-    final long longPressId = mAdapter.getItemId(longPressPosition);
+    final long longPressId = adapter.getItemId(longPressPosition);
+
     return dispatchLongPress(originalView, longPressPosition, longPressId);
   }
 
@@ -430,17 +1212,19 @@ public final class Carousel
   @Override
   protected int getChildDrawingOrder(int childCount, int i)
   {
-
     // Sort Carousel items by z coordinate in reverse order
-    ArrayList<Smart3DCarouselItem<?, ?>> sl = new ArrayList<>();
+    final ArrayList<CarouselItem<?, ?>> sl = new ArrayList<>();
+
     for (int j = 0; j < childCount; j++)
     {
-      Smart3DCarouselItem<?, ?> view = (Smart3DCarouselItem<?, ?>) getAdapter().getView(j, null, null);
+      final CarouselItem<?, ?> view = (CarouselItem<?, ?>) getAdapter().getView(j, null, null);
+
       if (i == 0)
       {
         view.setDrawn(false);
       }
-      sl.add((Smart3DCarouselItem<?, ?>) getAdapter().getView(j, null, null));
+
+      sl.add((CarouselItem<?, ?>) getAdapter().getView(j, null, null));
     }
 
     Collections.sort(sl);
@@ -448,9 +1232,9 @@ public final class Carousel
     // Get first undrawn item in array and get result index
     int idx = 0;
 
-    for (Smart3DCarouselItem<?, ?> civ : sl)
+    for (CarouselItem<?, ?> civ : sl)
     {
-      if (!civ.isDrawn())
+      if (civ.isDrawn() == false)
       {
         civ.setDrawn(true);
         idx = civ.getIndex();
@@ -459,7 +1243,6 @@ public final class Carousel
     }
 
     return idx;
-
   }
 
   /**
@@ -468,52 +1251,49 @@ public final class Carousel
   @Override
   protected boolean getChildStaticTransformation(View child, Transformation transformation)
   {
-
     transformation.clear();
     transformation.setTransformationType(Transformation.TYPE_MATRIX);
 
     // Center of the view
-    float centerX = (float) getWidth() / 2, centerY = (float) getHeight() / 2;
+    final float centerX = (float) getWidth() / 2, centerY = (float) getHeight() / 2;
 
     // Save camera
-    mCamera.save();
+    camera.save();
 
     // Translate the item to it's coordinates
     final Matrix matrix = transformation.getMatrix();
 
-    mCamera.translate(((Smart3DCarouselItem<?, ?>) child).getItemX(), ((Smart3DCarouselItem<?, ?>) child).getItemY(), ((Smart3DCarouselItem<?, ?>) child).getItemZ());
+    camera.translate(((CarouselItem<?, ?>) child).getItemX(), ((CarouselItem<?, ?>) child).getItemY(), ((CarouselItem<?, ?>) child).getItemZ());
 
     // Align the item
-    mCamera.getMatrix(matrix);
+    camera.getMatrix(matrix);
 
     matrix.preTranslate(-centerX, -centerY);
     matrix.postTranslate(centerX, centerY);
 
-    float[] values = new float[9];
+    final float[] values = new float[9];
     matrix.getValues(values);
 
     // Restore camera
-    mCamera.restore();
+    camera.restore();
 
-    Matrix mm = new Matrix();
+    final Matrix mm = new Matrix();
     mm.setValues(values);
-    ((Smart3DCarouselItem<?, ?>) child).setCIMatrix(mm);
+    ((CarouselItem<?, ?>) child).setCIMatrix(mm);
 
     // http://code.google.com/p/android/issues/detail?id=35178
     child.invalidate();
+
     return true;
   }
-
-  // CarouselAdapter overrides
 
   /**
    * Setting up images
    */
   @Override
-  void layout(int delta, boolean animate)
+  protected void layout(int delta, boolean animate)
   {
-
-    if (mDataChanged)
+    if (dataChanged == true)
     {
       handleDataChanged();
     }
@@ -526,9 +1306,9 @@ public final class Carousel
     }
 
     // Update to the new selected position.
-    if (mNextSelectedPosition >= 0)
+    if (nextSelectedPosition >= 0)
     {
-      setSelectedPositionInt(mNextSelectedPosition);
+      setSelectedPositionInt(nextSelectedPosition);
     }
 
     // All views go in recycler while we are in layout
@@ -537,13 +1317,14 @@ public final class Carousel
     // Clear out old views
     detachAllViewsFromParent();
 
-    int count = getAdapter().getCount();
-    float angleUnit = 360.0f / count;
+    final int count = getAdapter().getCount();
+    final float angleUnit = 360.0f / count;
+    final float angleOffset = selectedPosition * angleUnit;
 
-    float angleOffset = mSelectedPosition * angleUnit;
     for (int i = 0; i < getAdapter().getCount(); i++)
     {
       float angle = angleUnit * i - angleOffset;
+
       if (angle < 0.0f)
       {
         angle = 360.0f + angle;
@@ -552,19 +1333,12 @@ public final class Carousel
     }
 
     // Flush any cached views that did not get reused above
-    mRecycler.clear();
-
+    recycler.clear();
     invalidate();
-
-    setNextSelectedPositionInt(mSelectedPosition);
-
+    setNextSelectedPositionInt(selectedPosition);
     checkSelectionChanged();
-
-    // //////mDataChanged = false;
-    mNeedSync = false;
-
+    needSync = false;
     updateSelectedItemMetadata();
-
   }
 
   /**
@@ -578,916 +1352,28 @@ public final class Carousel
     /*
      * Remember that we are in layout to prevent more layout request from being generated.
      */
-    mInLayout = true;
+    isInLayout = true;
     layout(0, false);
-    mInLayout = false;
+    isInLayout = false;
   }
 
   @Override
-  void selectionChanged()
+  protected void selectionChanged()
   {
-    if (!mSuppressSelectionChanged)
+    if (suppressSelectionChanged == false)
     {
       super.selectionChanged();
     }
   }
 
   @Override
-  void setSelectedPositionInt(int position)
+  protected void setSelectedPositionInt(int position)
   {
     super.setSelectedPositionInt(position);
     super.setNextSelectedPositionInt(position);
 
     // Updates any metadata we keep about the selected item.
     updateSelectedItemMetadata();
-  }
-
-  // Rotation class for the Carousel
-
-  private class FlingRotateRunnable
-      implements Runnable
-  {
-
-    /**
-     * Tracks the decay of a fling rotation
-     */
-    private final Rotator mRotator;
-
-    /**
-     * Angle value reported by mRotator on the previous fling
-     */
-    private float mLastFlingAngle;
-
-    /**
-     * Constructor
-     */
-    public FlingRotateRunnable()
-    {
-      mRotator = new Rotator(getContext());
-    }
-
-    private void startCommon()
-    {
-      // Remove any pending flings
-      removeCallbacks(this);
-    }
-
-    public void startUsingVelocity(float initialVelocity)
-    {
-      if (initialVelocity == 0)
-      {
-        return;
-      }
-      startCommon();
-      mLastFlingAngle = 0.0f;
-      mRotator.fling(initialVelocity);
-      post(this);
-    }
-
-    public void startUsingDistance(float deltaAngle)
-    {
-      if (deltaAngle == 0)
-      {
-        return;
-      }
-
-      startCommon();
-
-      mLastFlingAngle = 0;
-      synchronized (this)
-      {
-        mRotator.startRotate(0.0f, -deltaAngle, mAnimationDuration);
-      }
-      post(this);
-    }
-
-    public void stop(boolean scrollIntoSlots)
-    {
-      removeCallbacks(this);
-      endFling(scrollIntoSlots);
-    }
-
-    private void endFling(boolean scrollIntoSlots)
-    {
-      /*
-       * Force the scroller's status to finished (without setting its position to the end)
-       */
-      synchronized (this)
-      {
-        mRotator.forceFinished(true);
-      }
-
-      if (scrollIntoSlots)
-      {
-        scrollIntoSlots();
-      }
-    }
-
-    @Override
-    public void run()
-    {
-      if (Carousel.this.getChildCount() == 0)
-      {
-        endFling(true);
-        return;
-      }
-
-      mShouldStopFling = false;
-
-      final Rotator rotator;
-      final float angle;
-      boolean more;
-      synchronized (this)
-      {
-        rotator = mRotator;
-        more = rotator.computeAngleOffset();
-        angle = rotator.getCurrAngle();
-      }
-
-      // Flip sign to convert finger direction to list items direction
-      // (e.g. finger moving down means list is moving towards the top)
-      float delta = mLastFlingAngle - angle;
-
-      // ////// Shoud be reworked
-      trackMotionScroll(delta);
-
-      if (more && !mShouldStopFling)
-      {
-        mLastFlingAngle = angle;
-        post(this);
-      }
-      else
-      {
-        mLastFlingAngle = 0.0f;
-        endFling(true);
-      }
-
-    }
-
-  }
-
-  // Image adapter class for the Carousel
-
-  // T1 represents the BO
-  // T2 represents a class that extends Smart3DCarouselItem
-
-  public static abstract class Smart3DCarouselAdapter<T1, T2>
-      extends BaseAdapter
-  {
-
-    private final Context mContext;
-
-    private final List<Smart3DCarouselItem<T1, T2>> mItems = new ArrayList<Smart3DCarouselItem<T1, T2>>();
-
-    public Smart3DCarouselAdapter(Context c, List<T1> l, List<T2> l2)
-    {
-      mContext = c;
-
-      for (int i = 0; i < l.size(); i++)
-      {
-        final Smart3DCarouselItem<T1, T2> item = getSmart3DCarouselItem(mContext);
-        item.setIndex(i);
-        item.update(l.get(i), l2.get(i));
-        mItems.add(item);
-      }
-    }
-
-    public abstract Smart3DCarouselItem<T1, T2> getSmart3DCarouselItem(Context context);
-
-    // public void SetImages(TypedArray array, TypedArray names)
-    // {
-
-    // if (names != null)
-    // if (array.length() != names.length())
-    // throw new RuntimeException("Images and names arrays length doesn't match");
-    //
-    // final int reflectionGap = 4;
-    //
-    // Drawable[] drawables = new Drawable[array.length()];
-    // mImages = new Smart3DCarouselItem[array.length()];
-
-    // for (int i = 0; i < array.length(); i++)
-    // {
-    // drawables[i] = array.getDrawable(i);
-    // Bitmap originalImage = ((BitmapDrawable) drawables[i]).getBitmap();
-    //
-    // Smart3DCarouselItem item = new Smart3DCarouselItem(mContext);
-    // item.setIndex(i);
-    // item.setImageBitmap(originalImage);
-    // mImages[i] = item;
-    // }
-
-    // }
-
-    @Override
-    public int getCount()
-    {
-      if (mItems == null)
-      {
-        return 0;
-      }
-      else
-      {
-        return mItems.size();
-      }
-    }
-
-    @Override
-    public Object getItem(int position)
-    {
-      return position;
-    }
-
-    @Override
-    public long getItemId(int position)
-    {
-      return position;
-    }
-
-    @Override
-    public View getView(int position, View convertView, ViewGroup parent)
-    {
-      return mItems.get(position);
-    }
-
-  }
-
-  // OnGestureListener implementation
-
-  @Override
-  public boolean onDown(MotionEvent e)
-  {
-    // Kill any existing fling/scroll
-    mFlingRunnable.stop(false);
-
-    // /// Don't know yet what for it is
-    // Get the item's view that was touched
-    mDownTouchPosition = pointToPosition((int) e.getX(), (int) e.getY());
-
-    if (mDownTouchPosition >= 0)
-    {
-      mDownTouchView = getChildAt(mDownTouchPosition - firstPosition);
-      mDownTouchView.setPressed(true);
-    }
-
-    // Reset the multiple-scroll tracking state
-    mIsFirstScroll = true;
-
-    // Must return true to get matching events for this down event.
-    return true;
-  }
-
-  @Override
-  public boolean onFling(MotionEvent e1, MotionEvent e2, float velocityX, float velocityY)
-  {
-
-    if (!mShouldCallbackDuringFling)
-    {
-      // We want to suppress selection changes
-
-      // Remove any future code to set mSuppressSelectionChanged = false
-      removeCallbacks(mDisableSuppressSelectionChangedRunnable);
-
-      // This will get reset once we scroll into slots
-      if (!mSuppressSelectionChanged)
-      {
-        mSuppressSelectionChanged = true;
-      }
-    }
-
-    // Fling the gallery!
-
-    // mFlingRunnable.startUsingVelocity((int) velocityX);
-
-    final int currentSelection = getSelectedItemPosition();
-    final int nextSelection;
-
-    if (velocityX > 0)
-    {
-      nextSelection = currentSelection == getChildCount() - 1 ? 0 : currentSelection + 1;
-    }
-    else
-    {
-      nextSelection = currentSelection == 0 ? getChildCount() - 1 : currentSelection - 1;
-    }
-    Smart3DCarouselItem<?, ?> view = (Smart3DCarouselItem<?, ?>) getAdapter().getView(nextSelection, null, null);
-    float angle = view.getCurrentAngle();
-
-    if (angle == 0)
-    {
-      return false;
-    }
-
-    if (angle > 180.0f)
-    {
-      angle = 360.0f - angle;
-    }
-    else
-    {
-      angle = -angle;
-    }
-
-    mFlingRunnable.startUsingDistance(angle);
-
-    return true;
-  }
-
-  @Override
-  public void onLongPress(MotionEvent e)
-  {
-
-    if (mDownTouchPosition < 0)
-    {
-      return;
-    }
-
-    performHapticFeedback(HapticFeedbackConstants.LONG_PRESS);
-    long id = getItemIdAtPosition(mDownTouchPosition);
-    dispatchLongPress(mDownTouchView, mDownTouchPosition, id);
-
-  }
-
-  @Override
-  public boolean onScroll(MotionEvent e1, MotionEvent e2, float distanceX, float distanceY)
-  {
-
-    if (localLOGV)
-    {
-      Log.v(TAG, String.valueOf(e2.getX() - e1.getX()));
-    }
-
-    /*
-     * Now's a good time to tell our parent to stop intercepting our events! The user has moved more than the slop amount, since GestureDetector
-     * ensures this before calling this method. Also, if a parent is more interested in this touch's events than we are, it would have intercepted
-     * them by now (for example, we can assume when a Gallery is in the ListView, a vertical scroll would not end up in this method since a ListView
-     * would have intercepted it by now).
-     */
-
-    getParent().requestDisallowInterceptTouchEvent(true);
-
-    // As the user scrolls, we want to callback selection changes so related-
-    // info on the screen is up-to-date with the gallery's selection
-    if (!mShouldCallbackDuringFling)
-    {
-      if (mIsFirstScroll)
-      {
-        /*
-         * We're not notifying the client of selection changes during the fling, and this scroll could possibly be a fling. Don't do selection changes
-         * until we're sure it is not a fling.
-         */
-        if (!mSuppressSelectionChanged)
-        {
-          mSuppressSelectionChanged = true;
-        }
-        postDelayed(mDisableSuppressSelectionChangedRunnable, SCROLL_TO_FLING_UNCERTAINTY_TIMEOUT);
-      }
-    }
-    else
-    {
-      if (mSuppressSelectionChanged)
-      {
-        mSuppressSelectionChanged = false;
-      }
-    }
-
-    // Track the motion
-    //trackMotionScroll(/* -1 * */(int) (distanceX * 0.5));
-
-    mIsFirstScroll = false;
-    return true;
-  }
-
-  @Override
-  public boolean onSingleTapUp(MotionEvent e)
-  {
-    if (mDownTouchPosition >= 0)
-    {
-
-      // Pass the click so the client knows, if it wants to.
-      if (mShouldCallbackOnUnselectedItemClick || mDownTouchPosition == mSelectedPosition)
-      {
-        performItemClick(mDownTouchView, mDownTouchPosition, mAdapter.getItemId(mDownTouchPosition));
-      }
-
-      return true;
-    }
-
-    return false;
-  }
-
-  // /// Unused gestures
-  @Override
-  public void onShowPress(MotionEvent e)
-  {
-  }
-
-  private void Calculate3DPosition(Smart3DCarouselItem<?, ?> child, int diameter, float angleOffset)
-  {
-
-    angleOffset = angleOffset * (float) (Math.PI / 180.0f);
-
-    float x = -(diameter / 2 * android.util.FloatMath.sin(angleOffset)) + diameter / 2 - child.getWidth() / 2;
-    float z = diameter / 2 * (1.0f - android.util.FloatMath.cos(angleOffset));
-    float y = -getHeight() / 2 + z * android.util.FloatMath.sin(mTheta);
-    // Increase the y space between items.
-    // float y = -getHeight() / 2f + diameter / 700f * z * android.util.FloatMath.sin(mTheta);
-
-    child.setItemX(x);
-    child.setItemZ(z);
-    child.setItemY(y);
-
-  }
-
-  /**
-   * Figure out vertical placement based on mGravity
-   *
-   * @param child Child to place
-   * @return Where the top of the child should be
-   */
-  private int calculateTop(View child, boolean duringLayout)
-  {
-    int myHeight = duringLayout ? getMeasuredHeight() : getHeight();
-    int childHeight = duringLayout ? child.getMeasuredHeight() : child.getHeight();
-
-    int childTop = 0;
-
-    switch (mGravity)
-    {
-    case Gravity.TOP:
-      childTop = mSpinnerPadding.top;
-      break;
-    case Gravity.CENTER_VERTICAL:
-      int availableSpace = myHeight - mSpinnerPadding.bottom - mSpinnerPadding.top - childHeight;
-      childTop = mSpinnerPadding.top + (availableSpace / 2);
-      break;
-    case Gravity.BOTTOM:
-      childTop = myHeight - mSpinnerPadding.bottom - childHeight;
-      break;
-    }
-    return childTop;
-  }
-
-  private boolean dispatchLongPress(View view, int position, long id)
-  {
-    boolean handled = false;
-
-    if (mOnItemLongClickListener != null)
-    {
-      handled = mOnItemLongClickListener.onItemLongClick(this, mDownTouchView, mDownTouchPosition, id);
-    }
-
-    if (!handled)
-    {
-      mContextMenuInfo = new AdapterContextMenuInfo(view, position, id);
-      handled = super.showContextMenuForChild(this);
-    }
-
-    if (handled)
-    {
-      performHapticFeedback(HapticFeedbackConstants.LONG_PRESS);
-    }
-
-    return handled;
-  }
-
-  private void dispatchPress(View child)
-  {
-
-    if (child != null)
-    {
-      child.setPressed(true);
-    }
-
-    setPressed(true);
-  }
-
-  private void dispatchUnpress()
-  {
-
-    for (int i = getChildCount() - 1; i >= 0; i--)
-    {
-      getChildAt(i).setPressed(false);
-    }
-
-    setPressed(false);
-  }
-
-  /**
-   * @return The center of this Gallery.
-   */
-  private int getCenterOfGallery()
-  {
-    return (getWidth() - Carousel.this.getPaddingLeft() - Carousel.this.getPaddingRight()) / 2 + Carousel.this.getPaddingLeft();
-  }
-
-  /**
-   * @return The center of the given view.
-   */
-  private static int getCenterOfView(View view)
-  {
-    return view.getLeft() + view.getWidth() / 2;
-  }
-
-  float getLimitedMotionScrollAmount(boolean motionToLeft, float deltaX)
-  {
-    int extremeItemPosition = motionToLeft ? Carousel.this.getCount() - 1 : 0;
-    View extremeChild = getChildAt(extremeItemPosition - Carousel.this.getFirstVisiblePosition());
-
-    if (extremeChild == null)
-    {
-      return deltaX;
-    }
-
-    int extremeChildCenter = getCenterOfView(extremeChild);
-    int galleryCenter = getCenterOfGallery();
-
-    if (motionToLeft)
-    {
-      if (extremeChildCenter <= galleryCenter)
-      {
-
-        // The extreme child is past his boundary point!
-        return 0;
-      }
-    }
-    else
-    {
-      if (extremeChildCenter >= galleryCenter)
-      {
-
-        // The extreme child is past his boundary point!
-        return 0;
-      }
-    }
-    int centerDifference = galleryCenter - extremeChildCenter;
-
-    return motionToLeft ? Math.max(centerDifference, deltaX) : Math.min(centerDifference, deltaX);
-  }
-
-  int getLimitedMotionScrollAmount(boolean motionToLeft, int deltaX)
-  {
-    int extremeItemPosition = motionToLeft ? mItemCount - 1 : 0;
-    View extremeChild = getChildAt(extremeItemPosition - firstPosition);
-
-    if (extremeChild == null)
-    {
-      return deltaX;
-    }
-
-    int extremeChildCenter = getCenterOfView(extremeChild);
-    int galleryCenter = getCenterOfGallery();
-
-    if (motionToLeft)
-    {
-      if (extremeChildCenter <= galleryCenter)
-      {
-
-        // The extreme child is past his boundary point!
-        return 0;
-      }
-    }
-    else
-    {
-      if (extremeChildCenter >= galleryCenter)
-      {
-
-        // The extreme child is past his boundary point!
-        return 0;
-      }
-    }
-
-    int centerDifference = galleryCenter - extremeChildCenter;
-
-    return motionToLeft ? Math.max(centerDifference, deltaX) : Math.min(centerDifference, deltaX);
-  }
-
-  private void makeAndAddView(int position, float angleOffset)
-  {
-    Smart3DCarouselItem<?, ?> child;
-
-    if (!mDataChanged)
-    {
-      child = (Smart3DCarouselItem<?, ?>) mRecycler.get(position);
-      if (child != null)
-      {
-
-        // Position the view
-        setUpChild(child, child.getIndex(), angleOffset);
-      }
-      else
-      {
-        // Nothing found in the recycler -- ask the adapter for a view
-        child = (Smart3DCarouselItem<?, ?>) mAdapter.getView(position, null, this);
-
-        // Position the view
-        setUpChild(child, child.getIndex(), angleOffset);
-      }
-      return;
-    }
-
-    // Nothing found in the recycler -- ask the adapter for a view
-    child = (Smart3DCarouselItem<?, ?>) mAdapter.getView(position, null, this);
-
-    // Position the view
-    setUpChild(child, child.getIndex(), angleOffset);
-
-  }
-
-  void onCancel()
-  {
-    onUp();
-  }
-
-  /**
-   * Called when rotation is finished
-   */
-  private void onFinishedMovement()
-  {
-    if (mSuppressSelectionChanged)
-    {
-      mSuppressSelectionChanged = false;
-
-      // We haven't been callbacking during the fling, so do it now
-      super.selectionChanged();
-    }
-    checkSelectionChanged();
-    invalidate();
-
-  }
-
-  void onUp()
-  {
-    if (mFlingRunnable.mRotator.isFinished())
-    {
-      scrollIntoSlots();
-    }
-    dispatchUnpress();
-  }
-
-  /**
-   * Brings an item with nearest to 0 degrees angle to this angle and sets it selected
-   */
-  private void scrollIntoSlots()
-  {
-
-    // Nothing to do
-    if (getChildCount() == 0 || mSelectedChild == null)
-    {
-      return;
-    }
-
-    // get nearest item to the 0 degrees angle
-    // Sort itmes and get nearest angle
-    float angle;
-    int position;
-
-    ArrayList<Smart3DCarouselItem<?, ?>> arr = new ArrayList<Smart3DCarouselItem<?, ?>>();
-
-    for (int i = 0; i < getAdapter().getCount(); i++)
-    {
-      arr.add(((Smart3DCarouselItem<?, ?>) getAdapter().getView(i, null, null)));
-    }
-
-    Collections.sort(arr, new Comparator<Smart3DCarouselItem<?, ?>>()
-    {
-
-      @Override
-      public int compare(Smart3DCarouselItem<?, ?> c1, Smart3DCarouselItem<?, ?> c2)
-      {
-        int a1 = (int) c1.getCurrentAngle();
-        if (a1 > 180)
-        {
-          a1 = 360 - a1;
-        }
-        int a2 = (int) c2.getCurrentAngle();
-        if (a2 > 180)
-        {
-          a2 = 360 - a2;
-        }
-        return (a1 - a2);
-      }
-
-    });
-
-    angle = arr.get(0).getCurrentAngle();
-
-    // Make it minimum to rotate
-    if (angle > 180.0f)
-    {
-      angle = -(360.0f - angle);
-    }
-
-    // Start rotation if needed
-    if (angle != 0.0f)
-    {
-      mFlingRunnable.startUsingDistance(-angle);
-    }
-    else
-    {
-      // Set selected position
-      position = arr.get(0).getIndex();
-      setSelectedPositionInt(position);
-      onFinishedMovement();
-    }
-
-  }
-
-  public void scrollToChild(int i)
-  {
-
-    Smart3DCarouselItem<?, ?> view = (Smart3DCarouselItem<?, ?>) getAdapter().getView(i, null, null);
-    float angle = view.getCurrentAngle();
-
-    if (angle == 0)
-    {
-      return;
-    }
-
-    if (angle > 180.0f)
-    {
-      angle = 360.0f - angle;
-    }
-    else
-    {
-      angle = -angle;
-    }
-
-    mFlingRunnable.startUsingDistance(angle);
-
-  }
-
-  /**
-   * Whether or not to callback on any {@link #getOnItemSelectedListener()} while the items are being flinged. If false, only the final selected item
-   * will cause the callback. If true, all items between the first and the final will cause callbacks.
-   *
-   * @param shouldCallback Whether or not to callback on the listener while the items are being flinged.
-   */
-  public void setCallbackDuringFling(boolean shouldCallback)
-  {
-    mShouldCallbackDuringFling = shouldCallback;
-  }
-
-  /**
-   * Whether or not to callback when an item that is not selected is clicked. If false, the item will become selected (and re-centered). If true, the
-   * {@link #getOnItemClickListener()} will get the callback.
-   *
-   * @param shouldCallback Whether or not to callback on the listener when a item that is not selected is clicked.
-   * @hide
-   */
-  public void setCallbackOnUnselectedItemClick(boolean shouldCallback)
-  {
-    mShouldCallbackOnUnselectedItemClick = shouldCallback;
-  }
-
-  /**
-   * Sets how long the transition animation should run when a child view changes position. Only relevant if animation is turned on.
-   *
-   * @param animationDurationMillis The duration of the transition, in milliseconds.
-   * @attr ref android.R.styleable#Gallery_animationDuration
-   */
-  public void setAnimationDuration(int animationDurationMillis)
-  {
-    mAnimationDuration = animationDurationMillis;
-  }
-
-  public void setGravity(int gravity)
-  {
-    if (mGravity != gravity)
-    {
-      mGravity = gravity;
-      requestLayout();
-    }
-  }
-
-  /**
-   * Helper for makeAndAddView to set the position of a view and fill out its layout paramters.
-   *
-   * @param child    The view to position
-   * @param offset   Offset from the selected position
-   * @param x        X-coordintate indicating where this view should be placed. This will either be the left or right edge of the view, depending on the
-   *                 fromLeft paramter
-   * @param fromLeft Are we posiitoning views based on the left edge? (i.e., building from left to right)?
-   */
-  private void setUpChild(Smart3DCarouselItem<?, ?> child, int index, float angleOffset)
-  {
-
-    // Ignore any layout parameters for child, use wrap content
-    addViewInLayout(child, -1 /* index */, generateDefaultLayoutParams());
-
-    child.setSelected(index == mSelectedPosition);
-
-    int h;
-    int w;
-    int d;
-
-    if (mInLayout)
-    {
-      w = child.getMeasuredWidth();
-      h = child.getMeasuredHeight();
-      d = getMeasuredWidth();
-
-    }
-    else
-    {
-      w = child.getMeasuredWidth();
-      h = child.getMeasuredHeight();
-      d = getWidth();
-
-    }
-
-    child.setCurrentAngle(angleOffset);
-
-    // Measure child
-    child.measure(w, h);
-
-    int childLeft;
-
-    // Position vertically based on gravity setting
-    int childTop = calculateTop(child, true);
-
-    childLeft = 0;
-
-    child.layout(childLeft, childTop, w, h);
-
-    Calculate3DPosition(child, d, angleOffset);
-
-  }
-
-  /**
-   * Tracks a motion scroll. In reality, this is used to do just about any movement to items (touch scroll, arrow-key scroll, set an item as
-   * selected).
-   *
-   * @param deltaAngle Change in X from the previous event.
-   */
-  public void trackMotionScroll(float deltaAngle)
-  {
-
-    if (getChildCount() == 0)
-    {
-      return;
-    }
-
-    for (int i = 0; i < getAdapter().getCount(); i++)
-    {
-
-      Smart3DCarouselItem<?, ?> child = (Smart3DCarouselItem<?, ?>) getAdapter().getView(i, null, null);
-
-      float angle = child.getCurrentAngle();
-      angle += deltaAngle;
-
-      while (angle > 360.0f)
-      {
-        angle -= 360.0f;
-      }
-
-      while (angle < 0.0f)
-      {
-        angle += 360.0f;
-      }
-
-      child.setCurrentAngle(angle);
-      Calculate3DPosition(child, getWidth(), angle);
-
-    }
-
-    // Clear unused views
-    mRecycler.clear();
-
-    invalidate();
-  }
-
-  private void updateSelectedItemMetadata()
-  {
-
-    View oldSelectedChild = mSelectedChild;
-
-    View child = mSelectedChild = getChildAt(mSelectedPosition - firstPosition);
-    if (child == null)
-    {
-      return;
-    }
-
-    child.setSelected(true);
-    child.setFocusable(true);
-
-    if (hasFocus())
-    {
-      child.requestFocus();
-    }
-
-    // We unfocus the old child down here so the above hasFocus check
-    // returns true
-    if (oldSelectedChild != null)
-    {
-
-      // Make sure its drawable state doesn't contain 'selected'
-      oldSelectedChild.setSelected(false);
-
-      // Make sure it is not focusable anymore, since otherwise arrow keys
-      // can make this one be focused
-      oldSelectedChild.setFocusable(false);
-    }
-
   }
 
 }
