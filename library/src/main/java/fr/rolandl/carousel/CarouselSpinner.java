@@ -209,11 +209,11 @@ public abstract class CarouselSpinner
     needSync = false;
 
     removeAllViewsInLayout();
-    oldSelectedPosition = INVALID_POSITION;
-    oldSelectedRowId = INVALID_ROW_ID;
+    oldSelectedPosition = CarouselBaseAdapter.INVALID_POSITION;
+    oldSelectedRowId = CarouselBaseAdapter.INVALID_ROW_ID;
 
-    setSelectedPositionInt(INVALID_POSITION);
-    setNextSelectedPositionInt(INVALID_POSITION);
+    setSelectedPositionInt(CarouselBaseAdapter.INVALID_POSITION);
+    setNextSelectedPositionInt(CarouselBaseAdapter.INVALID_POSITION);
     invalidate();
   }
 
@@ -312,7 +312,7 @@ public abstract class CarouselSpinner
     }
     else
     {
-      ss.position = INVALID_POSITION;
+      ss.position = CarouselBaseAdapter.INVALID_POSITION;
     }
 
     return ss;
@@ -352,8 +352,8 @@ public abstract class CarouselSpinner
     }
 
     this.adapter = adapter;
-    oldSelectedPosition = INVALID_POSITION;
-    oldSelectedRowId = INVALID_ROW_ID;
+    oldSelectedPosition = CarouselBaseAdapter.INVALID_POSITION;
+    oldSelectedRowId = CarouselBaseAdapter.INVALID_ROW_ID;
 
     if (this.adapter != null)
     {
@@ -363,7 +363,7 @@ public abstract class CarouselSpinner
 
       dataSetObserver = new AdapterDataSetObserver();
       this.adapter.registerDataSetObserver(dataSetObserver);
-      final int position = itemCount > 0 ? 0 : INVALID_POSITION;
+      final int position = itemCount > 0 ? 0 : CarouselBaseAdapter.INVALID_POSITION;
       setSelectedPositionInt(position);
       setNextSelectedPositionInt(position);
 

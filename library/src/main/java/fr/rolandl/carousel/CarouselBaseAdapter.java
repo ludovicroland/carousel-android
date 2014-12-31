@@ -103,10 +103,10 @@ public abstract class CarouselBaseAdapter<T extends Adapter>
       // Data is invalid so we should reset our state
       oldItemCount = itemCount;
       itemCount = 0;
-      selectedPosition = INVALID_POSITION;
-      selectedRowId = INVALID_ROW_ID;
-      nextSelectedPosition = INVALID_POSITION;
-      nextSelectedRowId = INVALID_ROW_ID;
+      selectedPosition = CarouselBaseAdapter.INVALID_POSITION;
+      selectedRowId = CarouselBaseAdapter.INVALID_ROW_ID;
+      nextSelectedPosition = CarouselBaseAdapter.INVALID_POSITION;
+      nextSelectedRowId = CarouselBaseAdapter.INVALID_ROW_ID;
       needSync = false;
 
       checkSelectionChanged();
@@ -244,11 +244,6 @@ public abstract class CarouselBaseAdapter<T extends Adapter>
   protected int firstPosition = 0;
 
   /**
-   * The offset in pixels from the top of the CarouselAdapter to the top of the view to select during the next layout.
-   */
-  private int specificTop;
-
-  /**
    * Position from which to start looking for syncRowId
    */
   protected int syncPosition;
@@ -256,12 +251,7 @@ public abstract class CarouselBaseAdapter<T extends Adapter>
   /**
    * Row id to look for when data has changed
    */
-  protected long syncRowId = INVALID_ROW_ID;
-
-  /**
-   * Height of the view when syncPosition and syncRowId where set
-   */
-  private long syncHeight;
+  protected long syncRowId = CarouselBaseAdapter.INVALID_ROW_ID;
 
   /**
    * True if we need to sync to syncRowId
@@ -273,11 +263,6 @@ public abstract class CarouselBaseAdapter<T extends Adapter>
    * .
    */
   protected int syncMode;
-
-  /**
-   * Our height after the last layout
-   */
-  private int layoutHeight;
 
   /**
    * Indicates that this view is currently being laid out.
@@ -307,22 +292,22 @@ public abstract class CarouselBaseAdapter<T extends Adapter>
   /**
    * The position within the adapter's data set of the item to select during the next layout.
    */
-  protected int nextSelectedPosition = INVALID_POSITION;
+  protected int nextSelectedPosition = CarouselBaseAdapter.INVALID_POSITION;
 
   /**
    * The item id of the item to select during the next layout.
    */
-  private long nextSelectedRowId = INVALID_ROW_ID;
+  private long nextSelectedRowId = CarouselBaseAdapter.INVALID_ROW_ID;
 
   /**
    * The position within the adapter's data set of the currently selected item.
    */
-  protected int selectedPosition = INVALID_POSITION;
+  protected int selectedPosition = CarouselBaseAdapter.INVALID_POSITION;
 
   /**
    * The item id of the currently selected item.
    */
-  protected long selectedRowId = INVALID_ROW_ID;
+  protected long selectedRowId = CarouselBaseAdapter.INVALID_ROW_ID;
 
   /**
    * View to show if there are no items to show.
@@ -342,12 +327,12 @@ public abstract class CarouselBaseAdapter<T extends Adapter>
   /**
    * The last selected position we used when notifying
    */
-  protected int oldSelectedPosition = INVALID_POSITION;
+  protected int oldSelectedPosition = CarouselBaseAdapter.INVALID_POSITION;
 
   /**
    * The id of the last selected position we used when notifying
    */
-  protected long oldSelectedRowId = INVALID_ROW_ID;
+  protected long oldSelectedRowId = CarouselBaseAdapter.INVALID_ROW_ID;
 
   /**
    * Indicates what focusable state is requested when calling setFocusable(). In addition to this, this view has other criteria for actually
@@ -838,7 +823,7 @@ public abstract class CarouselBaseAdapter<T extends Adapter>
     seed = Math.min(count - 1, seed);
 
     long rowId;
-    final long endTime = SystemClock.uptimeMillis() + SYNC_MAX_DURATION_MILLIS;
+    final long endTime = SystemClock.uptimeMillis() + CarouselBaseAdapter.SYNC_MAX_DURATION_MILLIS;
 
     // first position scanned so far
     int first = seed;
@@ -939,7 +924,7 @@ public abstract class CarouselBaseAdapter<T extends Adapter>
     nextSelectedRowId = getItemIdAtPosition(position);
 
     // If we are trying to sync to the selection, update that too
-    if (needSync == true && syncMode == SYNC_SELECTED_POSITION && position >= 0)
+    if (needSync == true && syncMode == CarouselBaseAdapter.SYNC_SELECTED_POSITION && position >= 0)
     {
       syncPosition = position;
       syncRowId = nextSelectedRowId;
@@ -954,26 +939,18 @@ public abstract class CarouselBaseAdapter<T extends Adapter>
     if (getChildCount() > 0)
     {
       needSync = true;
-      syncHeight = layoutHeight;
 
       if (selectedPosition >= 0)
       {
         // Sync the selection state
-        final View v = getChildAt(selectedPosition - firstPosition);
         syncRowId = nextSelectedRowId;
         syncPosition = nextSelectedPosition;
 
-        if (v != null)
-        {
-          specificTop = v.getTop();
-        }
-
-        syncMode = SYNC_SELECTED_POSITION;
+        syncMode = CarouselBaseAdapter.SYNC_SELECTED_POSITION;
       }
       else
       {
         // Sync the based on the offset of the first view
-        final View v = getChildAt(0);
         final T adapter = getAdapter();
 
         if (firstPosition >= 0 && firstPosition < adapter.getCount())
@@ -986,13 +963,7 @@ public abstract class CarouselBaseAdapter<T extends Adapter>
         }
 
         syncPosition = firstPosition;
-
-        if (v != null)
-        {
-          specificTop = v.getTop();
-        }
-
-        syncMode = SYNC_FIRST_POSITION;
+        syncMode = CarouselBaseAdapter.SYNC_FIRST_POSITION;
       }
     }
   }
@@ -1184,7 +1155,6 @@ public abstract class CarouselBaseAdapter<T extends Adapter>
   @Override
   protected void onLayout(boolean changed, int left, int top, int right, int bottom)
   {
-    layoutHeight = getHeight();
   }
 
   /**

@@ -139,7 +139,7 @@ public final class Carousel
       // (e.g. finger moving down means list is moving towards the top)
       final float delta = lastFlingAngle - angle;
 
-      // ////// Shoud be reworked
+      // Shoud be reworked
       trackMotionScroll(delta);
 
       if (more && !shouldStopFling)
@@ -296,7 +296,7 @@ public final class Carousel
 
     final float x = -(diameter / 2 * android.util.FloatMath.sin(angleOffset)) + diameter / 2 - child.getWidth() / 2;
     final float z = diameter / 2 * (1.0f - android.util.FloatMath.cos(angleOffset));
-    final float y = -getHeight() / 2 + z * android.util.FloatMath.sin(THETA);
+    final float y = -getHeight() / 2 + z * android.util.FloatMath.sin(Carousel.THETA);
 
     child.setItemX(x);
     child.setItemZ(z);
@@ -885,7 +885,7 @@ public final class Carousel
           suppressSelectionChanged = true;
         }
 
-        postDelayed(disableSuppressSelectionChangedRunnable, SCROLL_TO_FLING_UNCERTAINTY_TIMEOUT);
+        postDelayed(disableSuppressSelectionChangedRunnable, Carousel.SCROLL_TO_FLING_UNCERTAINTY_TIMEOUT);
       }
     }
     else

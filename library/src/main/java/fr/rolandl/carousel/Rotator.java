@@ -95,7 +95,7 @@ public final class Rotator
    */
   public float getCurrVelocity()
   {
-    return COEFF_VELOCOTY * velocity - mDeceleration * timePassed() /* / 2000.0f */;
+    return Rotator.COEFF_VELOCOTY * velocity - mDeceleration * timePassed() /* / 2000.0f */;
   }
 
   /**
@@ -153,22 +153,22 @@ public final class Rotator
     {
       switch (mode)
       {
-      case SCROLL_MODE:
+      case Rotator.SCROLL_MODE:
         final float sc = (float) timePassed / duration;
         currAngle = startAngle + Math.round(deltaAngle * sc);
         break;
 
-      case FLING_MODE:
+      case Rotator.FLING_MODE:
         final float timePassedSeconds = timePassed / 1000.0f;
         float distance;
 
         if (velocity < 0)
         {
-          distance = COEFF_VELOCOTY * velocity * timePassedSeconds - (mDeceleration * timePassedSeconds * timePassedSeconds / 2.0f);
+          distance = Rotator.COEFF_VELOCOTY * velocity * timePassedSeconds - (mDeceleration * timePassedSeconds * timePassedSeconds / 2.0f);
         }
         else
         {
-          distance = -COEFF_VELOCOTY * velocity * timePassedSeconds - (mDeceleration * timePassedSeconds * timePassedSeconds / 2.0f);
+          distance = -Rotator.COEFF_VELOCOTY * velocity * timePassedSeconds - (mDeceleration * timePassedSeconds * timePassedSeconds / 2.0f);
         }
 
         currAngle = startAngle - Math.signum(velocity) * Math.round(distance);
@@ -210,7 +210,7 @@ public final class Rotator
     mode = Rotator.FLING_MODE;
     finished = false;
     this.velocity = velocity;
-    duration = (int) (1000.0f * Math.sqrt(2.0f * COEFF_VELOCOTY * Math.abs(velocity) / mDeceleration));
+    duration = (int) (1000.0f * Math.sqrt(2.0f * Rotator.COEFF_VELOCOTY * Math.abs(velocity) / mDeceleration));
     startTime = AnimationUtils.currentAnimationTimeMillis();
   }
 
