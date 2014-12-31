@@ -11,9 +11,9 @@ import android.widget.FrameLayout;
  * @since 2014.12.19
  */
 //Inspired by http://www.codeproject.com/Articles/146145/Android-D-Carousel?fid=1605167&df=90&mpp=25&sort=Position&spc=Relaxed&tid=4918792
-public abstract class CarouselItem<T1, T2>
+public abstract class CarouselItem<T>
     extends FrameLayout
-    implements Comparable<CarouselItem<?, ?>>
+    implements Comparable<CarouselItem<?>>
 {
 
   private int index;
@@ -103,11 +103,6 @@ public abstract class CarouselItem<T1, T2>
     return drawn;
   }
 
-  public void update2(T1 arg0, T2 arg1)
-  {
-    update(arg0, arg1);
-  }
-
   public Matrix getCIMatrix()
   {
     return matrix;
@@ -119,14 +114,13 @@ public abstract class CarouselItem<T1, T2>
   }
 
   @Override
-  public int compareTo(CarouselItem<?, ?> another)
+  public int compareTo(CarouselItem<?> another)
   {
     return (int) (another.itemZ - this.itemZ);
   }
 
   public abstract void extractView(View view);
 
-  public abstract void update(T1 arg0, T2 arg1);
-
+  public abstract void update(T arg0);
 
 }

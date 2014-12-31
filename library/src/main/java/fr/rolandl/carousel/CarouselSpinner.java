@@ -21,7 +21,7 @@ import java.util.Collections;
  */
 //Inspired by http://www.codeproject.com/Articles/146145/Android-D-Carousel?fid=1605167&df=90&mpp=25&sort=Position&spc=Relaxed&tid=4918792
 public abstract class CarouselSpinner
-    extends CarouselAdapter<SpinnerAdapter>
+    extends CarouselBaseAdapter<SpinnerAdapter>
 {
 
   private static class SavedState
@@ -252,13 +252,13 @@ public abstract class CarouselSpinner
   public int pointToPosition(int x, int y)
   {
 
-    final ArrayList<CarouselItem<?, ?>> fitting = new ArrayList<CarouselItem<?, ?>>();
+    final ArrayList<CarouselItem<?>> fitting = new ArrayList<>();
 
     if (adapter != null)
     {
       for (int i = 0; i < adapter.getCount(); i++)
       {
-        final CarouselItem<?, ?> item = (CarouselItem<?, ?>) getChildAt(i);
+        final CarouselItem<?> item = (CarouselItem<?>) getChildAt(i);
         final Matrix mm = item.getCIMatrix();
         final float[] pts = new float[3];
 
@@ -331,7 +331,7 @@ public abstract class CarouselSpinner
       needSync = true;
       syncRowId = ss.selectedId;
       syncPosition = ss.position;
-      syncMode = CarouselAdapter.SYNC_SELECTED_POSITION;
+      syncMode = CarouselBaseAdapter.SYNC_SELECTED_POSITION;
       requestLayout();
     }
   }

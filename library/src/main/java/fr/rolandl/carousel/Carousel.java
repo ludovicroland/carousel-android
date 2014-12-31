@@ -160,66 +160,6 @@ public final class Carousel
   }
 
   /**
-   * Adapter class for the Carousel
-   *
-   * @param <T1> represents the BO
-   * @param <T2> represents a class that extends CarouselItem
-   */
-  public static abstract class ItemCarouselAdapter<T1, T2>
-      extends BaseAdapter
-  {
-
-    private final Context context;
-
-    private final List<CarouselItem<T1, T2>> items = new ArrayList<>();
-
-    public ItemCarouselAdapter(Context c, List<T1> l, List<T2> l2)
-    {
-      context = c;
-
-      for (int i = 0; i < l.size(); i++)
-      {
-        final CarouselItem<T1, T2> item = getCarouselItem(context);
-        item.setIndex(i);
-        item.update(l.get(i), l2.get(i));
-        items.add(item);
-      }
-    }
-
-    @Override
-    public int getCount()
-    {
-      if (items == null)
-      {
-        return 0;
-      }
-
-      return items.size();
-    }
-
-    @Override
-    public Object getItem(int position)
-    {
-      return position;
-    }
-
-    @Override
-    public long getItemId(int position)
-    {
-      return position;
-    }
-
-    @Override
-    public View getView(int position, View convertView, ViewGroup parent)
-    {
-      return items.get(position);
-    }
-
-    public abstract CarouselItem<T1, T2> getCarouselItem(Context context);
-
-  }
-
-  /**
    * Duration in milliseconds from the start of a scroll during which we're unsure whether the user is scrolling or flinging.
    */
   private static final int SCROLL_TO_FLING_UNCERTAINTY_TIMEOUT = 250;
@@ -352,7 +292,7 @@ public final class Carousel
     arr.recycle();
   }
 
-  private void Calculate3DPosition(CarouselItem<?, ?> child, int diameter, float angleOffset)
+  private void Calculate3DPosition(CarouselItem<?> child, int diameter, float angleOffset)
   {
     angleOffset = angleOffset * (float) (Math.PI / 180.0f);
 
@@ -525,11 +465,11 @@ public final class Carousel
 
   private void makeAndAddView(int position, float angleOffset)
   {
-    CarouselItem<?, ?> child;
+    CarouselItem<?> child;
 
     if (dataChanged == false)
     {
-      child = (CarouselItem<?, ?>) recycler.get(position);
+      child = (CarouselItem<?>) recycler.get(position);
 
       if (child != null)
       {
@@ -539,7 +479,7 @@ public final class Carousel
       else
       {
         // Nothing found in the recycler -- ask the adapter for a view
-        child = (CarouselItem<?, ?>) adapter.getView(position, null, this);
+        child = (CarouselItem<?>) adapter.getView(position, null, this);
 
         // Position the view
         setUpChild(child, child.getIndex(), angleOffset);
@@ -549,7 +489,7 @@ public final class Carousel
     }
 
     // Nothing found in the recycler -- ask the adapter for a view
-    child = (CarouselItem<?, ?>) adapter.getView(position, null, this);
+    child = (CarouselItem<?>) adapter.getView(position, null, this);
 
     // Position the view
     setUpChild(child, child.getIndex(), angleOffset);
@@ -603,18 +543,18 @@ public final class Carousel
     float angle;
     int position;
 
-    ArrayList<CarouselItem<?, ?>> arr = new ArrayList<>();
+    ArrayList<CarouselItem<?>> arr = new ArrayList<>();
 
     for (int i = 0; i < getAdapter().getCount(); i++)
     {
-      arr.add(((CarouselItem<?, ?>) getAdapter().getView(i, null, null)));
+      arr.add(((CarouselItem<?>) getAdapter().getView(i, null, null)));
     }
 
-    Collections.sort(arr, new Comparator<CarouselItem<?, ?>>()
+    Collections.sort(arr, new Comparator<CarouselItem<?>>()
     {
 
       @Override
-      public int compare(CarouselItem<?, ?> c1, CarouselItem<?, ?> c2)
+      public int compare(CarouselItem<?> c1, CarouselItem<?> c2)
       {
         int a1 = (int) c1.getCurrentAngle();
 
@@ -660,7 +600,7 @@ public final class Carousel
   public void scrollToChild(int i)
   {
 
-    final CarouselItem<?, ?> view = (CarouselItem<?, ?>) getAdapter().getView(i, null, null);
+    final CarouselItem<?> view = (CarouselItem<?>) getAdapter().getView(i, null, null);
     float angle = view.getCurrentAngle();
 
     if (angle == 0)
@@ -723,7 +663,7 @@ public final class Carousel
     }
   }
 
-  private void setUpChild(CarouselItem<?, ?> child, int index, float angleOffset)
+  private void setUpChild(CarouselItem<?> child, int index, float angleOffset)
   {
     // Ignore any layout parameters for child, use wrap content
     addViewInLayout(child, -1 /* index */, generateDefaultLayoutParams());
@@ -779,7 +719,7 @@ public final class Carousel
 
     for (int i = 0; i < getAdapter().getCount(); i++)
     {
-      CarouselItem<?, ?> child = (CarouselItem<?, ?>) getAdapter().getView(i, null, null);
+      CarouselItem<?> child = (CarouselItem<?>) getAdapter().getView(i, null, null);
       float angle = child.getCurrentAngle();
       angle += deltaAngle;
 
@@ -886,7 +826,7 @@ public final class Carousel
       nextSelection = currentSelection == 0 ? getChildCount() - 1 : currentSelection - 1;
     }
 
-    final CarouselItem<?, ?> view = (CarouselItem<?, ?>) getAdapter().getView(nextSelection, null, null);
+    final CarouselItem<?> view = (CarouselItem<?>) getAdapter().getView(nextSelection, null, null);
     float angle = view.getCurrentAngle();
 
     if (angle == 0)
@@ -1211,18 +1151,18 @@ public final class Carousel
   protected int getChildDrawingOrder(int childCount, int i)
   {
     // Sort Carousel items by z coordinate in reverse order
-    final ArrayList<CarouselItem<?, ?>> sl = new ArrayList<>();
+    final ArrayList<CarouselItem<?>> sl = new ArrayList<>();
 
     for (int j = 0; j < childCount; j++)
     {
-      final CarouselItem<?, ?> view = (CarouselItem<?, ?>) getAdapter().getView(j, null, null);
+      final CarouselItem<?> view = (CarouselItem<?>) getAdapter().getView(j, null, null);
 
       if (i == 0)
       {
         view.setDrawn(false);
       }
 
-      sl.add((CarouselItem<?, ?>) getAdapter().getView(j, null, null));
+      sl.add((CarouselItem<?>) getAdapter().getView(j, null, null));
     }
 
     Collections.sort(sl);
@@ -1230,7 +1170,7 @@ public final class Carousel
     // Get first undrawn item in array and get result index
     int idx = 0;
 
-    for (CarouselItem<?, ?> civ : sl)
+    for (CarouselItem<?> civ : sl)
     {
       if (civ.isDrawn() == false)
       {
@@ -1261,7 +1201,7 @@ public final class Carousel
     // Translate the item to it's coordinates
     final Matrix matrix = transformation.getMatrix();
 
-    camera.translate(((CarouselItem<?, ?>) child).getItemX(), ((CarouselItem<?, ?>) child).getItemY(), ((CarouselItem<?, ?>) child).getItemZ());
+    camera.translate(((CarouselItem<?>) child).getItemX(), ((CarouselItem<?>) child).getItemY(), ((CarouselItem<?>) child).getItemZ());
 
     // Align the item
     camera.getMatrix(matrix);
@@ -1277,7 +1217,7 @@ public final class Carousel
 
     final Matrix mm = new Matrix();
     mm.setValues(values);
-    ((CarouselItem<?, ?>) child).setCIMatrix(mm);
+    ((CarouselItem<?>) child).setCIMatrix(mm);
 
     // http://code.google.com/p/android/issues/detail?id=35178
     child.invalidate();
