@@ -17,11 +17,9 @@ import android.view.View;
 import android.view.ViewConfiguration;
 import android.view.ViewGroup;
 import android.view.animation.Transformation;
-import android.widget.BaseAdapter;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
-import java.util.List;
 
 /**
  * @author Igor Kushnarev, Ludovic Roland

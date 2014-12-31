@@ -56,12 +56,14 @@ public final class MainActivity
   public void onItemClick(CarouselBaseAdapter<?> parent, View view, int position, long id)
   {
     Toast.makeText(getApplicationContext(), "The item '" + position + "' has been clicked", Toast.LENGTH_SHORT).show();
+    carousel.scrollToChild(position);
   }
 
   @Override
   public boolean onItemLongClick(CarouselBaseAdapter<?> parent, View view, int position, long id)
   {
     Toast.makeText(getApplicationContext(), "The item '" + position + "' has been long clicked", Toast.LENGTH_SHORT).show();
+    carousel.scrollToChild(position);
     return false;
   }
 
