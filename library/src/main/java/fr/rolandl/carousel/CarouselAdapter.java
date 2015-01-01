@@ -1,10 +1,5 @@
 package fr.rolandl.carousel;
 
-/**
- * @author Ludovic ROLAND
- * @since 2014.12.20
- */
-
 import android.content.Context;
 import android.view.View;
 import android.view.ViewGroup;
@@ -13,6 +8,9 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
+ * @author Ludovic ROLAND
+ * @since 2014.12.20
+ *
  * Adapter class for the Carousel
  */
 public abstract class CarouselAdapter<T>

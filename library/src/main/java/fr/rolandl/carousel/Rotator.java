@@ -10,7 +10,7 @@ import android.view.animation.AnimationUtils;
  * rotation animation should take. Past this time, the rotation is automatically moved to its final stage and computeRotationOffset() will
  * always return false to indicate that scrolling is over.
  */
-//Inspired by http://www.codeproject.com/Articles/146145/Android-D-Carousel?fid=1605167&df=90&mpp=25&sort=Position&spc=Relaxed&tid=4918792
+//Inspired by http://www.codeproject.com/Articles/146145/Android-D-Carousel
 public final class Rotator
 {
 
