@@ -48,8 +48,27 @@ public final class MainActivity
     carousel.setAdapter(adapter);
     adapter.notifyDataSetChanged();
 
-    carousel.setOnItemClickListener(this);
-    carousel.setOnItemLongClickListener(this);
+    carousel.setOnItemClickListener(new OnItemClickListener()
+    {
+      @Override
+      public void onItemClick(CarouselBaseAdapter<?> carouselBaseAdapter, View view, int position, long l)
+      {
+        Toast.makeText(getApplicationContext(), "The item '" + position + "' has been clicked", Toast.LENGTH_SHORT).show();
+        carousel.scrollToChild(position);
+      }
+    });
+    carousel.setOnItemLongClickListener(new OnItemLongClickListener()
+    {
+
+      @Override
+      public boolean onItemLongClick(CarouselBaseAdapter<?> carouselBaseAdapter, View view, int position, long id)
+      {
+        Toast.makeText(getApplicationContext(), "The item '" + position + "' has been long clicked", Toast.LENGTH_SHORT).show();
+        carousel.scrollToChild(position);
+        return false;
+      }
+
+    });
   }
 
   @Override
