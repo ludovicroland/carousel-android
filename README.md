@@ -22,7 +22,7 @@ Library releases are available on Maven Central
 **Gradle**
 
 ```groovy
-compile 'fr.rolandl:carousel:1.0.0@aar'
+compile 'fr.rolandl:carousel:1.0.1@aar'
 ```
 
 **Maven**
@@ -31,7 +31,7 @@ compile 'fr.rolandl:carousel:1.0.0@aar'
 <dependency>
   <groupId>fr.rolandl</groupId>
   <artifactId>carousel</artifactId>
-  <version>1.0.0</version>
+  <version>1.0.1</version>
   <type>aar</type>
 </dependency>
 ```
@@ -242,3 +242,13 @@ carousel.setOnItemLongClickListener(new OnItemLongClickListener()
 ## Miscellaneous
 
 The photos used into the sample app are from the [Fotolia](http://www.fotolia.com) website.
+
+## Changelog
+
+### v1.0.1
+
+* Removed useless resources
+
+### v1.0.0
+
+* First release
