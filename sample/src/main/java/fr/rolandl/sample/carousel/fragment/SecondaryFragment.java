@@ -1,18 +1,18 @@
-package fr.rolandl.sample.carousel;
+package fr.rolandl.sample.carousel.fragment;
 
-import android.content.Intent;
 import android.os.Bundle;
-import android.support.v7.app.ActionBarActivity;
-import android.view.Menu;
-import android.view.MenuItem;
-import android.view.MenuItem.OnMenuItemClickListener;
+import android.support.annotation.Nullable;
+import android.support.v4.app.Fragment;
+import android.view.LayoutInflater;
 import android.view.View;
+import android.view.ViewGroup;
 import android.widget.Toast;
 import fr.rolandl.carousel.Carousel;
 import fr.rolandl.carousel.CarouselAdapter;
 import fr.rolandl.carousel.CarouselBaseAdapter;
 import fr.rolandl.carousel.CarouselBaseAdapter.OnItemClickListener;
 import fr.rolandl.carousel.CarouselBaseAdapter.OnItemLongClickListener;
+import fr.rolandl.sample.carousel.R;
 import fr.rolandl.sample.carousel.adapter.MyAdapter;
 import fr.rolandl.sample.carousel.bo.Photo;
 import java.util.ArrayList;
@@ -20,10 +20,10 @@ import java.util.List;
 
 /**
  * @author Ludovic ROLAND
- * @since 2014.12.19
+ * @since 2015.04.04
  */
-public final class MainActivity
-    extends ActionBarActivity
+public class SecondaryFragment
+    extends Fragment
     implements OnItemClickListener, OnItemLongClickListener
 {
 
@@ -34,13 +34,11 @@ public final class MainActivity
   private final List<Photo> photos = new ArrayList<>();
 
   @Override
-  protected void onCreate(Bundle savedInstanceState)
+  public View onCreateView(LayoutInflater inflater, @Nullable ViewGroup container, @Nullable Bundle savedInstanceState)
   {
-    super.onCreate(savedInstanceState);
+    final View view = inflater.inflate(R.layout.main_activity, null);
 
-    setContentView(R.layout.main_activity);
-
-    carousel = (Carousel) findViewById(R.id.carousel);
+    carousel = (Carousel) view.findViewById(R.id.carousel);
 
     photos.add(new Photo("Photo1", "fotolia_40649376"));
     photos.add(new Photo("Photo2", "fotolia_40973414"));
@@ -48,7 +46,7 @@ public final class MainActivity
     photos.add(new Photo("Photo4", "fotolia_50806609"));
     photos.add(new Photo("Photo5", "fotolia_61643329"));
 
-    adapter = new MyAdapter(this, photos);
+    adapter = new MyAdapter(getActivity(), photos);
     carousel.setAdapter(adapter);
     adapter.notifyDataSetChanged();
 
@@ -57,7 +55,7 @@ public final class MainActivity
       @Override
       public void onItemClick(CarouselBaseAdapter<?> carouselBaseAdapter, View view, int position, long l)
       {
-        Toast.makeText(getApplicationContext(), "The item '" + position + "' has been clicked", Toast.LENGTH_SHORT).show();
+        Toast.makeText(getActivity().getApplicationContext(), "The item '" + position + "' has been clicked", Toast.LENGTH_SHORT).show();
         carousel.scrollToChild(position);
       }
     });
@@ -68,55 +66,28 @@ public final class MainActivity
       @Override
       public boolean onItemLongClick(CarouselBaseAdapter<?> carouselBaseAdapter, View view, int position, long id)
       {
-        Toast.makeText(getApplicationContext(), "The item '" + position + "' has been long clicked", Toast.LENGTH_SHORT).show();
+        Toast.makeText(getActivity().getApplicationContext(), "The item '" + position + "' has been long clicked", Toast.LENGTH_SHORT).show();
         carousel.scrollToChild(position);
         return false;
       }
 
     });
-  }
 
-  @Override
-  public boolean onCreateOptionsMenu(Menu menu)
-  {
-    final MenuItem firstItem = menu.add(Menu.NONE, Menu.NONE, Menu.NONE, R.string.activityStaticFragment);
-    firstItem.setOnMenuItemClickListener(new OnMenuItemClickListener()
-    {
-      @Override
-      public boolean onMenuItemClick(MenuItem item)
-      {
-        startActivity(new Intent(getApplicationContext(), SecondaryActivity.class));
-        return true;
-      }
-    });
-
-    final MenuItem secondItem = menu.add(Menu.NONE, Menu.NONE, Menu.NONE, R.string.activityFragment);
-    secondItem.setOnMenuItemClickListener(new OnMenuItemClickListener()
-    {
-      @Override
-      public boolean onMenuItemClick(MenuItem item)
-      {
-        startActivity(new Intent(getApplicationContext(), ThirdActivity.class));
-        return true;
-      }
-    });
-
-    return super.onCreateOptionsMenu(menu);
+    return view;
   }
 
   @Override
   public void onItemClick(CarouselBaseAdapter<?> parent, View view, int position, long id)
   {
-    Toast.makeText(getApplicationContext(), "The item '" + position + "' has been clicked", Toast.LENGTH_SHORT).show();
+    Toast.makeText(getActivity().getApplicationContext(), "The item '" + position + "' has been clicked", Toast.LENGTH_SHORT).show();
     carousel.scrollToChild(position);
   }
 
   @Override
   public boolean onItemLongClick(CarouselBaseAdapter<?> parent, View view, int position, long id)
   {
-    Toast.makeText(getApplicationContext(), "The item '" + position + "' has been long clicked", Toast.LENGTH_SHORT).show();
+    Toast.makeText(getActivity().getApplicationContext(), "The item '" + position + "' has been long clicked", Toast.LENGTH_SHORT).show();
     carousel.scrollToChild(position);
     return false;
   }
-
 }

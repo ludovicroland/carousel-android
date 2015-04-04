@@ -13,6 +13,7 @@
     <activity
       android:name=".MainActivity"
       android:configChanges="orientation|keyboardHidden|screenLayout"
+      android:label="Activity Only"
       >
       <intent-filter>
         <action android:name="android.intent.action.MAIN"/>
@@ -20,6 +21,17 @@
       </intent-filter>
     </activity>
 
-  </application>
+    <activity
+      android:name=".SecondaryActivity"
+      android:configChanges="orientation|keyboardHidden|screenLayout"
+      android:label="Activity with fragment (static)"
+    />
 
+    <activity
+      android:name=".ThirdActivity"
+      android:configChanges="orientation|keyboardHidden|screenLayout"
+      android:label="Activity with fragment (transaction)"
+      />
+
+  </application>
 </manifest>

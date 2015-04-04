@@ -2,18 +2,18 @@ apply plugin: 'com.android.application'
 
 android
 {
-  compileSdkVersion 21
-  buildToolsVersion "21.1.2"
+  compileSdkVersion 22
+  buildToolsVersion "22.0.1"
 
   defaultConfig
   {
     applicationId "fr.rolandl.carousel"
 
     minSdkVersion 9
-    targetSdkVersion 21
+    targetSdkVersion 22
 
-    versionCode 2
-    versionName "1.0.1"
+    versionCode 3
+    versionName "1.1.1"
   }
 
   buildTypes
@@ -36,7 +36,7 @@ dependencies
 {
   compile fileTree(dir: 'libs', include: ['*.jar'])
 
-  compile 'com.android.support:appcompat-v7:21.0.+'
+  compile 'com.android.support:appcompat-v7:22.0.+'
 
   //compile project(':library')
 

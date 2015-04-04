@@ -1,3 +1,5 @@
 <resources>
-    <string name="app_name">carousel-android</string>
+  <string name="app_name">carousel-android</string>
+  <string name="activityStaticFragment">Activity with fragment (static)</string>
+  <string name="activityFragment">Activity with fragment (transaction)</string>
 </resources>
